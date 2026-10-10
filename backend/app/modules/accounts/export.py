@@ -1,6 +1,7 @@
 """Data export (portability) for the signed-in user. Excludes credentials and session data."""
 
 from datetime import UTC, datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends
 from fastapi.encoders import jsonable_encoder
@@ -46,6 +47,6 @@ def export_me(user: User = Depends(get_current_user), db: Session = Depends(get_
     audit.record(db, user_id=user.id, action="user.exported", entity_type="user", entity_id=user.id)
     db.commit()
     return JSONResponse(
-        jsonable_encoder(payload),
+        jsonable_encoder(payload, custom_encoder={Decimal: str}),
         headers={"content-disposition": 'attachment; filename="edgeledger-export.json"'},
     )

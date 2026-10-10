@@ -23,3 +23,13 @@ class PageParams(BaseModel):
     @property
     def offset(self) -> int:
         return (self.page - 1) * self.page_size
+
+
+def decimal_safe_json(payload) -> "JSONResponse":
+    """Encode a plain dict response with Decimals as strings (never floats)."""
+    from decimal import Decimal
+
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(jsonable_encoder(payload, custom_encoder={Decimal: str}))
