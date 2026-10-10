@@ -86,9 +86,7 @@ def client(app):
 
 
 def register(client, email="trader@example.com", password="correct-horse-9", name="Trader"):
-    r = client.post(
-        "/api/v1/auth/register", json={"email": email, "password": password, "display_name": name}
-    )
+    r = client.post("/api/v1/auth/register", json={"email": email, "password": password, "display_name": name})
     assert r.status_code == 201, r.text
     return r.json()
 

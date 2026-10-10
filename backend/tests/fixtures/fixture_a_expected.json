@@ -1,0 +1,29 @@
+{
+  "_comment": "Hand-computed expected results for fixture_a.csv. See tests/fixtures/README.md for the derivation.",
+  "rows": {"total": 14, "valid": 12, "rejected": 1, "duplicate": 1},
+  "trades": [
+    {"symbol": "AAPL", "direction": "long", "status": "closed", "gross_pnl": "150", "fees": "4.15", "net_pnl": "145.85", "session_date": "2024-03-04", "holding_seconds": 3300},
+    {"symbol": "TSLA", "direction": "short", "status": "closed", "gross_pnl": "-200", "fees": "2", "net_pnl": "-202", "session_date": "2024-03-05", "holding_seconds": 1200},
+    {"symbol": "ESH4", "direction": "long", "status": "closed", "gross_pnl": "200", "fees": "4.2", "net_pnl": "195.8", "session_date": "2024-03-06", "holding_seconds": 1200},
+    {"symbol": "ESH4", "direction": "short", "status": "closed", "gross_pnl": "125", "fees": "4.2", "net_pnl": "120.8", "session_date": "2024-03-06", "holding_seconds": 1500},
+    {"symbol": "MSFT", "direction": "long", "status": "open", "gross_pnl": "0", "fees": "0", "net_pnl": "0", "session_date": "2024-03-07", "holding_seconds": null},
+    {"symbol": "NVDA", "direction": "long", "status": "closed", "gross_pnl": "0", "fees": "0", "net_pnl": "0", "session_date": "2024-03-07", "holding_seconds": 1800}
+  ],
+  "metrics": {
+    "closed_trades": 5,
+    "open_trades": 1,
+    "wins": 3, "losses": 1, "breakevens": 1,
+    "gross_pnl": "275", "fees": "14.55", "net_pnl": "260.45",
+    "win_rate": "0.75",
+    "profit_factor": "2.2894",
+    "expectancy": "52.09",
+    "avg_win": "154.15", "avg_loss": "-202", "median_trade": "120.8",
+    "max_drawdown": "202",
+    "max_consecutive_wins": 2, "max_consecutive_losses": 1,
+    "avg_holding_seconds": 1800,
+    "trading_days": 4, "profitable_days": 2,
+    "daily": {"2024-03-04": "145.85", "2024-03-05": "-202", "2024-03-06": "316.6", "2024-03-07": "0"},
+    "long_net": "341.65", "short_net": "-81.2",
+    "weekday": {"Monday": "145.85", "Tuesday": "-202", "Wednesday": "316.6", "Thursday": "0"}
+  }
+}

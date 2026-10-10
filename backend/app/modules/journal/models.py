@@ -17,9 +17,7 @@ class Tag(IdMixin, TimestampMixin, Base):
         CheckConstraint("category in ('general','setup','mistake','emotion')", name="category"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
-    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     category: Mapped[str] = mapped_column(String(16), default="general", nullable=False)
     color: Mapped[str | None] = mapped_column(String(16))

@@ -24,12 +24,8 @@ RECORD_STATUSES = ("valid", "rejected", "duplicate", "imported")
 class ImportJob(IdMixin, TimestampMixin, Base):
     __tablename__ = "import_jobs"
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"
-        ),
-        CheckConstraint(
-            "status in ('uploaded','previewed','queued','committing','completed','failed')", name="status"
-        ),
+        ForeignKeyConstraint(["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"),
+        CheckConstraint("status in ('uploaded','previewed','queued','committing','completed','failed')", name="status"),
         Index("ix_import_jobs_user_created", "user_id", "created_at"),
     )
 
@@ -72,6 +68,4 @@ class RawImportRecord(IdMixin, Base):
     errors: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
     warnings: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
     fingerprint: Mapped[str | None] = mapped_column(String(64))
-    duplicate_of_execution_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("executions.id", ondelete="SET NULL")
-    )
+    duplicate_of_execution_id: Mapped[UUID | None] = mapped_column(ForeignKey("executions.id", ondelete="SET NULL"))

@@ -65,9 +65,7 @@ def login(data: LoginIn, request: Request, response: Response, db: Session = Dep
 
 
 @router.post("/logout", status_code=204)
-def logout(
-    response: Response, sess: UserSession = Depends(get_current_session), db: Session = Depends(get_db)
-):
+def logout(response: Response, sess: UserSession = Depends(get_current_session), db: Session = Depends(get_db)):
     service.revoke_session(db, sess)
     response.delete_cookie(get_settings().session_cookie_name, path="/")
     response.status_code = 204

@@ -61,9 +61,7 @@ def create_app() -> FastAPI:
         ok = all(v == "ok" for v in checks.values())
         from fastapi.responses import JSONResponse
 
-        return JSONResponse(
-            status_code=200 if ok else 503, content={"status": "ok" if ok else "degraded", **checks}
-        )
+        return JSONResponse(status_code=200 if ok else 503, content={"status": "ok" if ok else "degraded", **checks})
 
     return app
 

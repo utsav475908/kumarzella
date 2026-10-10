@@ -25,9 +25,7 @@ class Execution(IdMixin, TimestampMixin, Base):
 
     __tablename__ = "executions"
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"
-        ),
+        ForeignKeyConstraint(["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"),
         CheckConstraint("side in ('buy','sell')", name="side"),
         CheckConstraint("quantity > 0", name="quantity_positive"),
         CheckConstraint("price >= 0", name="price_nonnegative"),
@@ -51,9 +49,7 @@ class Execution(IdMixin, TimestampMixin, Base):
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     import_job_id: Mapped[UUID | None] = mapped_column(ForeignKey("import_jobs.id", ondelete="SET NULL"))
     raw_record_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey(
-            "raw_import_records.id", ondelete="SET NULL", use_alter=True, name="fk_executions_raw_record"
-        )
+        ForeignKey("raw_import_records.id", ondelete="SET NULL", use_alter=True, name="fk_executions_raw_record")
     )
     source_execution_id: Mapped[str | None] = mapped_column(String(128))
     fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)

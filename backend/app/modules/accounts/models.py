@@ -31,9 +31,7 @@ class Account(IdMixin, TimestampMixin, Base):
         CheckConstraint("char_length(base_currency) = 3", name="currency"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
-    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     broker: Mapped[str | None] = mapped_column(String(120))
     account_type: Mapped[str] = mapped_column(String(16), default="live", nullable=False)
@@ -52,9 +50,7 @@ class CashTransaction(IdMixin, TimestampMixin, Base):
 
     __tablename__ = "cash_transactions"
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"
-        ),
+        ForeignKeyConstraint(["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"),
         CheckConstraint("kind in ('deposit','withdrawal')", name="kind"),
         CheckConstraint("amount > 0", name="amount_positive"),
     )

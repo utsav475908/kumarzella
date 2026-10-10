@@ -14,9 +14,7 @@ class AppError(Exception):
     status_code = 400
     code = "bad_request"
 
-    def __init__(
-        self, message: str, *, details: Any = None, code: str | None = None, status: int | None = None
-    ):
+    def __init__(self, message: str, *, details: Any = None, code: str | None = None, status: int | None = None):
         super().__init__(message)
         self.message = message
         self.details = details
@@ -67,12 +65,8 @@ def install_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_: Request, exc: RequestValidationError):
-        details = [
-            {"loc": list(e.get("loc", [])), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()
-        ]
-        return JSONResponse(
-            status_code=422, content=_body("validation_failed", "Request validation failed", details)
-        )
+        details = [{"loc": list(e.get("loc", [])), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()]
+        return JSONResponse(status_code=422, content=_body("validation_failed", "Request validation failed", details))
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_: Request, exc: StarletteHTTPException):

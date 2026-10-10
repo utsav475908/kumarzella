@@ -14,9 +14,7 @@ class Playbook(IdMixin, TimestampMixin, Base):
     __tablename__ = "playbooks"
     __table_args__ = (UniqueConstraint("user_id", "name"),)
 
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
-    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     current_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

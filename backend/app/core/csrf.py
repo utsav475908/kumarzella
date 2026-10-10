@@ -20,9 +20,7 @@ EXEMPT_PATHS = {"/api/v1/auth/csrf"}
 def issue_csrf_cookie(response: Response) -> str:
     s = get_settings()
     token = secrets.token_urlsafe(24)
-    response.set_cookie(
-        s.csrf_cookie_name, token, httponly=False, secure=s.cookie_secure, samesite="lax", path="/"
-    )
+    response.set_cookie(s.csrf_cookie_name, token, httponly=False, secure=s.cookie_secure, samesite="lax", path="/")
     return token
 
 

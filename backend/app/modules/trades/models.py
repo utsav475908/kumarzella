@@ -30,9 +30,7 @@ class Trade(IdMixin, TimestampMixin, Base):
 
     __tablename__ = "trades"
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"
-        ),
+        ForeignKeyConstraint(["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"),
         CheckConstraint("direction in ('long','short')", name="direction"),
         CheckConstraint("status in ('open','closed')", name="status"),
         CheckConstraint("origin in ('imported','manual','mixed')", name="origin"),
@@ -48,9 +46,7 @@ class Trade(IdMixin, TimestampMixin, Base):
     instrument_id: Mapped[UUID] = mapped_column(ForeignKey("instruments.id"), index=True, nullable=False)
     # Stable identity: the execution that opened the trade. anchor_leg=1 marks the opening remainder
     # of a reversal fill (the same execution also closed the previous trade).
-    anchor_execution_id: Mapped[UUID] = mapped_column(
-        ForeignKey("executions.id", ondelete="CASCADE"), nullable=False
-    )
+    anchor_execution_id: Mapped[UUID] = mapped_column(ForeignKey("executions.id", ondelete="CASCADE"), nullable=False)
     anchor_leg: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     origin: Mapped[str] = mapped_column(String(16), nullable=False)
     direction: Mapped[str] = mapped_column(String(8), nullable=False)
@@ -80,9 +76,7 @@ class Trade(IdMixin, TimestampMixin, Base):
     initial_risk: Mapped[Decimal | None] = mapped_column(Money)
     r_multiple: Mapped[Decimal | None] = mapped_column(Money)
 
-    playbook_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("playbooks.id", ondelete="SET NULL"), index=True
-    )
+    playbook_id: Mapped[UUID | None] = mapped_column(ForeignKey("playbooks.id", ondelete="SET NULL"), index=True)
     followed_plan: Mapped[bool | None] = mapped_column(Boolean)
     rating: Mapped[int | None] = mapped_column(Integer)
 
@@ -112,9 +106,7 @@ class Position(IdMixin, Base):
 
     __tablename__ = "positions"
     __table_args__ = (
-        ForeignKeyConstraint(
-            ["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"
-        ),
+        ForeignKeyConstraint(["account_id", "user_id"], ["accounts.id", "accounts.user_id"], ondelete="CASCADE"),
         UniqueConstraint("account_id", "instrument_id"),
     )
 

@@ -1,0 +1,3 @@
+Date/Time,Symbol,Side,Quantity,Price,Commission,Fees,Exec ID
+2024-03-07 09:50:00,MSFT,BUY,10,400.00,0,0,M1
+2024-03-08 10:00:00,MSFT,SELL,10,405.00,0,0,M2

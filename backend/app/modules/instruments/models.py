@@ -16,9 +16,7 @@ class Instrument(IdMixin, TimestampMixin, Base):
     __tablename__ = "instruments"
     __table_args__ = (
         UniqueConstraint("symbol", "asset_class"),
-        CheckConstraint(
-            "asset_class in ('stock','etf','option','future','forex','crypto')", name="asset_class"
-        ),
+        CheckConstraint("asset_class in ('stock','etf','option','future','forex','crypto')", name="asset_class"),
         CheckConstraint("multiplier > 0", name="multiplier_positive"),
     )
 

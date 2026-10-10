@@ -95,13 +95,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("account_type in ('live','paper','demo')", name=op.f("ck_accounts_account_type")),
-        sa.CheckConstraint(
-            "accounting_policy in ('average_cost','fifo')", name=op.f("ck_accounts_accounting_policy")
-        ),
+        sa.CheckConstraint("accounting_policy in ('average_cost','fifo')", name=op.f("ck_accounts_accounting_policy")),
         sa.CheckConstraint("char_length(base_currency) = 3", name=op.f("ck_accounts_currency")),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_accounts_user_id_users"), ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("fk_accounts_user_id_users"), ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_accounts")),
         sa.UniqueConstraint("id", "user_id", name="uq_accounts_id_user"),
         sa.UniqueConstraint("user_id", "name", name=op.f("uq_accounts_user_id_name")),
@@ -115,9 +111,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_day_notes_user_id_users"), ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("fk_day_notes_user_id_users"), ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_day_notes")),
         sa.UniqueConstraint("user_id", "day", name=op.f("uq_day_notes_user_id_day")),
     )
@@ -131,9 +125,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_playbooks_user_id_users"), ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("fk_playbooks_user_id_users"), ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_playbooks")),
         sa.UniqueConstraint("user_id", "name", name=op.f("uq_playbooks_user_id_name")),
     )
@@ -147,12 +139,8 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint(
-            "category in ('general','setup','mistake','emotion')", name=op.f("ck_tags_category")
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_tags_user_id_users"), ondelete="CASCADE"
-        ),
+        sa.CheckConstraint("category in ('general','setup','mistake','emotion')", name=op.f("ck_tags_category")),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("fk_tags_user_id_users"), ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_tags")),
         sa.UniqueConstraint("id", "user_id", name="uq_tags_id_user"),
         sa.UniqueConstraint("user_id", "name", name=op.f("uq_tags_user_id_name")),
@@ -198,9 +186,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_cash_transactions")),
     )
-    op.create_index(
-        op.f("ix_cash_transactions_account_id"), "cash_transactions", ["account_id"], unique=False
-    )
+    op.create_index(op.f("ix_cash_transactions_account_id"), "cash_transactions", ["account_id"], unique=False)
     op.create_index(op.f("ix_cash_transactions_user_id"), "cash_transactions", ["user_id"], unique=False)
     op.create_table(
         "import_jobs",
@@ -328,13 +314,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_raw_import_records")),
-        sa.UniqueConstraint(
-            "import_job_id", "row_number", name=op.f("uq_raw_import_records_import_job_id_row_number")
-        ),
+        sa.UniqueConstraint("import_job_id", "row_number", name=op.f("uq_raw_import_records_import_job_id_row_number")),
     )
-    op.create_index(
-        op.f("ix_raw_import_records_import_job_id"), "raw_import_records", ["import_job_id"], unique=False
-    )
+    op.create_index(op.f("ix_raw_import_records_import_job_id"), "raw_import_records", ["import_job_id"], unique=False)
     op.create_foreign_key(
         "fk_executions_raw_record",
         "executions",
@@ -406,9 +388,7 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_trades")),
-        sa.UniqueConstraint(
-            "anchor_execution_id", "anchor_leg", name=op.f("uq_trades_anchor_execution_id_anchor_leg")
-        ),
+        sa.UniqueConstraint("anchor_execution_id", "anchor_leg", name=op.f("uq_trades_anchor_execution_id_anchor_leg")),
         sa.UniqueConstraint("id", "user_id", name="uq_trades_id_user"),
     )
     op.create_index(
@@ -473,9 +453,7 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_positions")),
-        sa.UniqueConstraint(
-            "account_id", "instrument_id", name=op.f("uq_positions_account_id_instrument_id")
-        ),
+        sa.UniqueConstraint("account_id", "instrument_id", name=op.f("uq_positions_account_id_instrument_id")),
     )
     op.create_index(op.f("ix_positions_user_id"), "positions", ["user_id"], unique=False)
     op.create_table(
@@ -500,9 +478,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("trade_id", "execution_id", name=op.f("pk_trade_executions")),
     )
-    op.create_index(
-        op.f("ix_trade_executions_execution_id"), "trade_executions", ["execution_id"], unique=False
-    )
+    op.create_index(op.f("ix_trade_executions_execution_id"), "trade_executions", ["execution_id"], unique=False)
     op.create_table(
         "trade_notes",
         sa.Column("trade_id", sa.Uuid(), nullable=False),

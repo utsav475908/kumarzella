@@ -12,9 +12,7 @@ class Attachment(IdMixin, TimestampMixin, Base):
         ForeignKeyConstraint(["trade_id", "user_id"], ["trades.id", "trades.user_id"], ondelete="CASCADE"),
     )
 
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
-    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     trade_id: Mapped[UUID | None] = mapped_column(index=True)
     storage_key: Mapped[str] = mapped_column(String(400), nullable=False, unique=True)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
