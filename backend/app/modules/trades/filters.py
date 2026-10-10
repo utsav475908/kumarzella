@@ -5,11 +5,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
 from fastapi import Query
-from sqlalchemy import Select, exists, or_, select
+from sqlalchemy import Select, case, exists, func, or_, select
 
 from app.modules.instruments.models import Instrument
 from app.modules.journal.models import TradeTag
@@ -32,6 +33,10 @@ class TradeFilters:
     outcome: str | None = None
     origin: str | None = None
     q: str | None = None
+    net_min: Decimal | None = None
+    net_max: Decimal | None = None
+    entry_hour: int | None = None
+    weekday: int | None = None
 
     def as_dict(self) -> dict:
         d = {
@@ -48,6 +53,10 @@ class TradeFilters:
             "outcome": self.outcome,
             "origin": self.origin,
             "q": self.q,
+            "net_min": str(self.net_min) if self.net_min is not None else None,
+            "net_max": str(self.net_max) if self.net_max is not None else None,
+            "entry_hour": self.entry_hour,
+            "weekday": self.weekday,
         }
         return {k: v for k, v in d.items() if v not in (None, [], "")}
 
@@ -66,6 +75,10 @@ def trade_filters(
     outcome: Literal["win", "loss", "breakeven"] | None = None,
     origin: Literal["imported", "manual", "mixed"] | None = None,
     q: str | None = Query(None, max_length=64),
+    net_min: Decimal | None = Query(None, description="Minimum net P&L (inclusive)"),
+    net_max: Decimal | None = Query(None, description="Maximum net P&L (inclusive)"),
+    entry_hour: int | None = Query(None, ge=0, le=23, description="Entry hour in the instrument's market timezone"),
+    weekday: int | None = Query(None, ge=0, le=6, description="Exit session weekday, 0 = Monday"),
 ) -> TradeFilters:
     pb_ids: list[UUID] = []
     no_pb = False
@@ -79,6 +92,7 @@ def trade_filters(
         symbols=[s.strip().upper() for s in symbol if s.strip()], asset_classes=list(asset_class),
         playbook_ids=pb_ids, no_playbook=no_pb, tag_ids=tag_id, direction=direction, session=session,
         status=status, outcome=outcome, origin=origin, q=q.strip() if q else None,
+        net_min=net_min, net_max=net_max, entry_hour=entry_hour, weekday=weekday,
     )  # fmt: skip
 
 
@@ -120,6 +134,14 @@ def apply_filters(stmt: Select, user_id: UUID, f: TradeFilters) -> Select:
         stmt = stmt.where(Trade.status == "closed", Trade.net_pnl == 0)
     if f.origin:
         stmt = stmt.where(Trade.origin == f.origin)
+    if f.net_min is not None:
+        stmt = stmt.where(Trade.net_pnl >= f.net_min)
+    if f.net_max is not None:
+        stmt = stmt.where(Trade.net_pnl <= f.net_max)
+    if f.entry_hour is not None:
+        stmt = stmt.where(func.extract("hour", func.timezone(market_tz_expr(), Trade.opened_at)) == f.entry_hour)
+    if f.weekday is not None:
+        stmt = stmt.where(func.extract("isodow", Trade.session_date) == f.weekday + 1)
     if f.q:
         stmt = stmt.where(Instrument.symbol.ilike(f"%{f.q.upper().replace('%', '').replace('_', '')}%"))
     return stmt
@@ -127,3 +149,12 @@ def apply_filters(stmt: Select, user_id: UUID, f: TradeFilters) -> Select:
 
 def base_query() -> Select:
     return select(Trade, Instrument).join(Instrument, Instrument.id == Trade.instrument_id)
+
+
+def market_tz_expr():
+    """SQL mirror of instruments.rules.calendar_for: the market timezone of the trade's instrument."""
+    return case(
+        (Instrument.asset_class == "future", "America/Chicago"),
+        (Instrument.asset_class == "crypto", "UTC"),
+        else_="America/New_York",
+    )

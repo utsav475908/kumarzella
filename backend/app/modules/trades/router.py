@@ -130,7 +130,7 @@ def get_trade(trade_id: UUID, user: User = Depends(get_current_user), db: Sessio
     prev_id, next_id = service.neighbors(db, t)
     sign = "+1 (long)" if t.direction == "long" else "-1 (short)"
     calc = {
-        "gross_pnl": f"{sign} x (exit value - entry value) x multiplier {inst.multiplier}"
+        "gross_pnl": f"{sign} x (exit value - entry value) x multiplier {format(inst.multiplier.normalize(), 'f')}"
         if t.status == "closed"
         else "realized P&L of partial exits only (position still open)",
         "net_pnl": "gross_pnl - fees (commission + fees of every allocated execution)",

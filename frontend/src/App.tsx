@@ -1,0 +1,44 @@
+import { Navigate, Route, Routes } from "react-router";
+import { useMe } from "./api/hooks";
+import { Layout, useTheme } from "./components/Layout";
+import { ErrorState, Loading } from "./components/ui";
+import { AccountsPage } from "./pages/Accounts";
+import { LoginPage, RegisterPage } from "./pages/Auth";
+import { CalendarPage } from "./pages/CalendarPage";
+import { DashboardPage } from "./pages/Dashboard";
+import { ImportWizard } from "./pages/ImportWizard";
+import { PlaybookReport, PlaybooksPage } from "./pages/Playbooks";
+import { ImportsPage, SettingsPage } from "./pages/Settings";
+import { TradeDetailPage } from "./pages/TradeDetail";
+import { TradesPage } from "./pages/Trades";
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const me = useMe();
+  if (me.isLoading) return <Loading label="Checking your session…" />;
+  if (me.isError) return <div className="p-6"><ErrorState error={me.error} onRetry={() => me.refetch()} /></div>;
+  if (!me.data) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+export default function App() {
+  useTheme();
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route element={<RequireAuth><Layout /></RequireAuth>}>
+        <Route index element={<DashboardPage />} />
+        <Route path="trades" element={<TradesPage />} />
+        <Route path="trades/:id" element={<TradeDetailPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
+        <Route path="import" element={<ImportWizard />} />
+        <Route path="imports" element={<ImportsPage />} />
+        <Route path="playbooks" element={<PlaybooksPage />} />
+        <Route path="playbooks/:id" element={<PlaybookReport />} />
+        <Route path="accounts" element={<AccountsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  );
+}

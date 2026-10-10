@@ -168,3 +168,17 @@ def test_money_is_serialized_as_strings_not_floats(auth_client):
     assert isinstance(t["net_pnl"], str)
     e = auth_client.get("/api/v1/exports/me").json()
     assert isinstance(e["executions"][0]["price"], str)
+
+
+def test_drilldown_filters_match_chart_groups(auth_client):
+    acct = create_account(auth_client)
+    import_file(auth_client, acct["id"], "fixture_a.csv")
+    d = auth_client.get("/api/v1/analytics/dashboard").json()
+    for g in d["by_hour"]:
+        rows = all_trades(auth_client, entry_hour=g["key"], status="closed")
+        assert len(rows) == g["trades"], g
+    for g in d["by_weekday"]:
+        rows = all_trades(auth_client, weekday=g["key"], status="closed")
+        assert len(rows) == g["trades"], g
+    rows = all_trades(auth_client, net_min="100", net_max="200")
+    assert {t["symbol"] for t in rows} == {"AAPL", "ESH4"}
