@@ -7,7 +7,7 @@ import structlog
 
 from app.core.config import get_settings
 
-REDACT_KEYS = {"password", "token", "secret", "authorization", "cookie", "access_key", "secret_key"}
+REDACT_KEYS = {"password", "token", "secret", "authorization", "cookie", "csrf", "access_key", "secret_key"}
 
 
 def _redact(_, __, event_dict):

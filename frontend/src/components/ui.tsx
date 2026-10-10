@@ -69,7 +69,14 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
 }
 
 export function errorMessage(e: unknown): string {
-  if (e instanceof ApiError) return e.message;
+  if (e instanceof ApiError) {
+    if (e.code === "validation_failed" && Array.isArray(e.details) && e.details.length) {
+      const first = e.details[0] as { loc?: unknown[]; msg?: string };
+      const field = first.loc?.filter((x) => x !== "body").join(".");
+      return `${e.message}: ${field ? `${field}: ` : ""}${first.msg ?? ""}`;
+    }
+    return e.message;
+  }
   if (e instanceof Error) return e.message;
   return "Something went wrong";
 }

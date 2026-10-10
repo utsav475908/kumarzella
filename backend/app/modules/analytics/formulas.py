@@ -1,6 +1,6 @@
 """Central definitions of every per-trade financial formula. Aggregate metrics live in metrics.py.
 
-See docs/metrics.md for the written definitions; tests/test_metrics_*.py hold the regression fixtures.
+See docs/metrics.md for the written definitions; tests/test_metrics.py hold the regression fixtures.
 """
 
 from decimal import Decimal

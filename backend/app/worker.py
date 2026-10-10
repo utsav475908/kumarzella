@@ -5,6 +5,7 @@ from uuid import UUID
 from celery import Celery
 from sqlalchemy.exc import OperationalError
 
+import app.models  # noqa: F401  (register every table)
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.core.logging import configure_logging, log
