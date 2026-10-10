@@ -25,7 +25,7 @@ class PageParams(BaseModel):
         return (self.page - 1) * self.page_size
 
 
-def decimal_safe_json(payload) -> "JSONResponse":
+def decimal_safe_json(payload):
     """Encode a plain dict response with Decimals as strings (never floats)."""
     from decimal import Decimal
 
