@@ -1,4 +1,4 @@
-"""A scripted stand-in for the Claude Messages API, for end-to-end tests and offline development.
+"""A scripted stand-in for the Claude Messages API (and OpenAI Chat Completions), for tests and offline development.
 
 It is not a model. It follows one fixed script so the real Anthropic SDK code path (HTTP, headers, parsing) can be
 tested without a network or an API key:
@@ -10,7 +10,7 @@ tested without a network or an API key:
 Every answer says it came from this test server, so it can't be mistaken for real coaching.
 
 Run: ``python -m tests.fake_claude --port 8765`` and start the API with ``EL_ANTHROPIC_BASE_URL=http://127.0.0.1:8765``
-and any ``EL_ANTHROPIC_API_KEY``. ``GET /last`` returns the last request's headers and body.
+and any ``EL_ANTHROPIC_API_KEY`` (or ``EL_OPENAI_BASE_URL=http://127.0.0.1:8765/v1`` and any ``EL_OPENAI_API_KEY``). ``GET /last`` returns the last request's headers and body.
 """
 
 from __future__ import annotations
@@ -54,12 +54,33 @@ def respond(body: dict) -> dict:
     return _message([{"type": "text", "text": text}], "end_turn", model)
 
 
+def respond_openai(body: dict) -> dict:
+    """The same script in OpenAI Chat Completions shape."""
+    model = body.get("model", "fake")
+    results = [m for m in body.get("messages", []) if m["role"] == "tool" and not m["content"].startswith("Error:")]
+    if not results:
+        msg = {"role": "assistant", "content": None, "refusal": None, "tool_calls": [{
+            "id": f"call_fake_{next(_ids)}", "type": "function",
+            "function": {"name": "performance_summary", "arguments": json.dumps({"filters": NO_FILTERS, "currency": None})}}]}  # fmt: skip
+        finish = "tool_calls"
+    else:
+        fake_anthropic = {
+            "messages": [{"role": "user", "content": [{"type": "tool_result", "content": results[-1]["content"]}]}]
+        }
+        text = respond(fake_anthropic)["content"][0]["text"]
+        msg, finish = {"role": "assistant", "content": text, "refusal": None}, "stop"
+    return {"id": f"chatcmpl-fake{next(_ids)}", "object": "chat.completion", "created": 0, "model": model,
+            "choices": [{"index": 0, "message": msg, "finish_reason": finish, "logprobs": None}],
+            "usage": {"prompt_tokens": 1500, "completion_tokens": 200, "total_tokens": 1700,
+                      "prompt_tokens_details": {"cached_tokens": 0}}}  # fmt: skip
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
         LAST.clear()
         LAST.update({"path": self.path, "headers": {k.lower(): v for k, v in self.headers.items()}, "body": body})
-        out = json.dumps(respond(body)).encode()
+        out = json.dumps(respond_openai(body) if self.path.endswith("/chat/completions") else respond(body)).encode()
         self.send_response(200)
         self.send_header("content-type", "application/json")
         self.send_header("request-id", f"req_fake_{next(_ids)}")

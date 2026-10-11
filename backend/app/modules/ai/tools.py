@@ -454,6 +454,8 @@ def run_tool(ctx: ToolContext, name: str, args: Any) -> ToolOutput:
         raise ToolError(f"Unknown tool {name!r}. The coach can only read data with: {', '.join(BY_NAME)}.")
     if not isinstance(args, dict):
         raise ToolError("Tool input must be an object")
+    if "_invalid_input" in args:
+        raise ToolError(str(args["_invalid_input"]))
     out = tool.run(ctx, args)
     out.tool = tool.name
     out.result = _encode(out.result)

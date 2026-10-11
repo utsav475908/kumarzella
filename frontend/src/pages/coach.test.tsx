@@ -25,6 +25,7 @@ describe("AI coach page", () => {
     const setup = await screen.findByTestId("coach-setup");
     expect(setup).toHaveTextContent("switched off");
     expect(setup).toHaveTextContent("ANTHROPIC_API_KEY=");
+    expect(setup).toHaveTextContent("OPENAI_API_KEY=");
     expect(screen.queryByRole("form", { name: "Ask the coach" })).not.toBeInTheDocument();
   });
 

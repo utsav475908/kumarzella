@@ -151,8 +151,9 @@ export function CoachSetup({ reason }: { reason: string | null }) {
       <p className="font-medium">The AI coach is switched off.</p>
       <p className="text-muted">{reason ?? "No Anthropic API key is configured."}</p>
       <p className="text-muted">
-        To turn it on, put your own Anthropic API key in a file called <code>.env</code> next to <code>docker-compose.yml</code>{" "}
-        as <code>ANTHROPIC_API_KEY=sk-ant-…</code>, then run <code>docker compose up -d</code>. Usage is billed to that key.
+        To turn it on, put your own API key in a file called <code>.env</code> next to <code>docker-compose.yml</code>:{" "}
+        <code>OPENAI_API_KEY=sk-…</code> for OpenAI or <code>ANTHROPIC_API_KEY=sk-ant-…</code> for Claude. Then run{" "}
+        <code>docker compose up -d</code>. Git ignores that file, and usage is billed to your key.
       </p>
     </div>
   );

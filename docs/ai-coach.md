@@ -1,13 +1,13 @@
 # AI coach
 
-The coach answers questions about the trader's own journal, reviews single trades, suggests tags and summarises a day or a week. It runs on Claude through the Anthropic API, with the operator's own API key.
+The coach answers questions about the trader's own journal, reviews single trades, suggests tags and summarises a day or a week. It runs on the operator's own API key, either OpenAI (default model `gpt-5.5`) or Anthropic's Claude (default `claude-opus-5-5`).
 
 Code:
 
 - `backend/app/modules/ai/tools.py` defines the read-only tools the model can call.
 - `backend/app/modules/ai/coach.py` runs the bounded tool loop and stores the result.
 - `backend/app/modules/ai/grounding.py` is the unsupported-claim check.
-- `backend/app/modules/ai/client.py` is the Anthropic SDK client and its error handling.
+- `backend/app/modules/ai/client.py` holds the Anthropic and OpenAI SDK clients and their error handling. The coach speaks the Anthropic Messages format, and `OpenAIClient` translates each request to OpenAI Chat Completions (tools become strict functions, tool results become `tool` messages, the answer schema becomes a strict `response_format`) and the reply back. The loop, the evidence check and storage are the same for both.
 - `backend/app/modules/ai/router.py` exposes the API under `/api/v1/ai`.
 - `frontend/src/pages/Coach.tsx` holds the Coach page and the trade page's AI review panel.
 - `frontend/src/components/CoachAnswer.tsx` renders an answer with its citations and evidence.
@@ -16,23 +16,26 @@ Code:
 
 The coach is off until an API key is configured. When it is off, every coach endpoint returns `503 ai_not_configured` and nothing is sent anywhere.
 
-- **Docker Compose:** create a file named `.env` next to `docker-compose.yml` containing `ANTHROPIC_API_KEY=sk-ant-...`, then run `docker compose up -d`.
-- **Native:** set `EL_ANTHROPIC_API_KEY`. A plain `ANTHROPIC_API_KEY` also works.
+- **Docker Compose:** create a file named `.env` next to `docker-compose.yml` (git ignores it) containing `OPENAI_API_KEY=sk-...` or `ANTHROPIC_API_KEY=sk-ant-...`. Then run `docker compose up -d`. Optional lines: `AI_PROVIDER=openai` to force OpenAI when both keys are present, and `OPENAI_MODEL=...`.
+- **Native:** set `EL_OPENAI_API_KEY` or `EL_ANTHROPIC_API_KEY`. Plain `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` also work.
+- **Which provider:** `EL_AI_PROVIDER=auto` (the default) uses Anthropic when its key is set, otherwise OpenAI.
 
 Usage is billed to that key. Settings, all `EL_*`:
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `AI_MODEL` | `claude-opus-5-5` | Model for every call |
-| `AI_EFFORT` | `medium` | Thinking effort: `low` to `max` |
-| `AI_FALLBACKS` | `true` | Server-side refusal fallbacks (see below) |
+| `AI_PROVIDER` | `auto` | `auto`, `openai` or `anthropic` |
+| `OPENAI_MODEL` | `gpt-5.5` | OpenAI model |
+| `AI_MODEL` | `claude-opus-5-5` | Anthropic model |
+| `AI_EFFORT` | `medium` | Thinking effort (OpenAI `reasoning_effort`): `low` to `max` |
+| `AI_FALLBACKS` | `true` | Anthropic server-side refusal fallbacks (see below) |
 | `AI_MAX_TOOL_ROUNDS` | 6 | Model calls that may request tools, per answer |
 | `AI_MAX_TOOL_CALLS` | 16 | Tool runs per answer |
 | `AI_TOKEN_BUDGET` | 250,000 | Input plus output tokens per answer, across all calls |
 | `AI_MAX_TOKENS` | 8,000 | Output tokens per call |
 | `AI_TIMEOUT_SECONDS` | 120 | Per HTTP request (the SDK retries twice) |
 | `AI_RATE_LIMIT` / `AI_RATE_WINDOW_SECONDS` | 30 / 3600 | Coach requests per user per window |
-| `ANTHROPIC_BASE_URL` | unset | Alternative API endpoint (tests point it at `tests/fake_claude.py`) |
+| `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL` | unset | Alternative API endpoints (tests point them at `tests/fake_claude.py`) |
 
 ## API
 
@@ -58,7 +61,7 @@ Every answer comes back with:
 
 ## How an answer is produced
 
-1. The request goes to Claude with a fixed system prompt (`coach.SYSTEM_PROMPT`), the eight tools below, and a JSON response schema. The system prompt and the tools never change between requests, so prompt caching applies.
+1. The request goes to the model with a fixed system prompt (`coach.SYSTEM_PROMPT`), the eight tools below, and a JSON response schema. The system prompt and the tools never change between requests, so prompt caching applies.
 2. While the model asks for tools, the server runs them as the signed-in user. Each result goes back labelled with an evidence ref (E1, E2 and so on). The loop is bounded by `AI_MAX_TOOL_ROUNDS`, `AI_MAX_TOOL_CALLS` and `AI_TOKEN_BUDGET`. On the last allowed round the model is told to answer with what it has.
 3. The final answer goes through the [evidence check](#the-evidence-check). If it fails, the model is asked once to fix the answer. If the answer still fails, it is stored as `ungrounded`, and the page shows a red warning that lists the figures that could not be traced.
 4. The answer and every tool result are stored in `ai_reviews` and `ai_evidence` (migration 0005). Both are included in the data export and are deleted with the user or the trade.
@@ -68,7 +71,7 @@ Model behaviour is pinned down on the server:
 - **Thinking:** always on; depth is set with `effort`.
 - **Tool choice:** `auto`. Every tool is `strict: true`.
 - **Final answer:** must match the response schema (`output_config.format`).
-- **Refusals:** when Claude declines a request, the API re-runs it on Anthropic's recommended fallback model inside the same call (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`). If the whole chain declines, the answer is stored as `declined`.
+- **Refusals (Anthropic):** when Claude declines a request, the API re-runs it on Anthropic's recommended fallback model inside the same call (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`). If the whole chain declines, the answer is stored as `declined`.
 - **API errors:** an invalid key, a rate limit or a network error becomes a clear `503 ai_unavailable` message.
 
 ## Tools
@@ -123,7 +126,7 @@ The model is told never to calculate figures itself. A figure it worked out, eve
   - Any figure the injected text tricks the model into stating fails the evidence check.
 - Tag suggestions are only suggestions. A tag is added to a trade only when the trader clicks the button.
 
-## What is sent to Anthropic
+## What is sent to the AI provider
 
 - The question.
 - The system prompt.
@@ -149,7 +152,7 @@ Nothing else is sent: no email, password, session, API keys or other users' data
   - the 99% is flagged.
 - **Budgets:** a model that never stops calling tools is cut off at the round and tool-call limits. The token budget stops the loop. Coach requests are rate-limited.
 - **Refusal:** a declined request is stored as `declined`.
-- **Real SDK path:** the actual Anthropic SDK client runs against `tests/fake_claude.py`, a scripted local HTTP server. The test checks the beta header, `fallbacks: "default"`, the API key header, the effort setting and the message order.
+- **Real SDK paths:** the actual Anthropic and OpenAI SDK clients run against `tests/fake_claude.py`, a scripted local HTTP server. The Anthropic test checks the beta header, `fallbacks: "default"`, the API key header, the effort setting and the message order. The OpenAI test checks the translated request: `developer`, `user`, `assistant` (with `tool_calls`) and `tool` messages, strict functions, the strict response format and `reasoning_effort`. Provider selection from the keys is tested too.
 
 `frontend/src/pages/coach.test.tsx` covers:
 
@@ -166,4 +169,4 @@ Nothing else is sent: no email, password, session, API keys or other users' data
 - The coach reads the journal, reports and playbooks. It does not read backtest sessions or candles.
 - The evidence check is about numbers. It can't tell whether a sentence's reasoning is sound. Read each answer as a set of candidate patterns to check.
 - Answers take several seconds, because each tool round is another model call. The page shows progress.
-- Live answers depend on the operator's Anthropic account: its rate limits, its model access and its cost.
+- Live answers depend on the operator's OpenAI or Anthropic account: its rate limits, its model access and its cost.

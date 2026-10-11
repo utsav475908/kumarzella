@@ -95,9 +95,10 @@ def journal(auth_client):
 
 def test_not_configured_without_a_key(auth_client, monkeypatch):
     monkeypatch.setattr(get_settings(), "anthropic_api_key", None)  # even if the developer's shell has a key
+    monkeypatch.setattr(get_settings(), "openai_api_key", None)
     ai_client.set_client_for_tests(None)
     st = auth_client.get("/api/v1/ai/status").json()
-    assert st["enabled"] is False and "EL_ANTHROPIC_API_KEY" in st["reason"]
+    assert st["enabled"] is False and "OPENAI_API_KEY" in st["reason"] and "ANTHROPIC_API_KEY" in st["reason"]
     r = auth_client.post("/api/v1/ai/ask", json={"question": "How am I doing?"})
     assert r.status_code == 503 and r.json()["error"]["code"] == "ai_not_configured"
 
@@ -409,3 +410,56 @@ def test_the_real_sdk_client_end_to_end_against_a_scripted_server(journal):
     assert LAST["body"]["output_config"]["effort"] == "medium"
     # the assistant's tool_use turn went back with the tool result
     assert [m["role"] for m in LAST["body"]["messages"]] == ["user", "assistant", "user"]
+
+
+def test_provider_follows_the_keys(monkeypatch):
+    from pydantic import SecretStr
+
+    s = get_settings()
+    monkeypatch.setattr(s, "anthropic_api_key", None)
+    monkeypatch.setattr(s, "openai_api_key", SecretStr("sk-openai-test"))
+    ai_client.set_client_for_tests(None)
+    try:
+        c = ai_client.get_client()
+        assert c.provider == "openai" and c.model == s.openai_model
+        monkeypatch.setattr(s, "anthropic_api_key", SecretStr("sk-ant-test"))
+        ai_client.set_client_for_tests(None)
+        assert ai_client.get_client().provider == "anthropic"  # auto prefers Anthropic when both are set
+        monkeypatch.setattr(s, "ai_provider", "openai")
+        ai_client.set_client_for_tests(None)
+        assert ai_client.get_client().provider == "openai"
+        monkeypatch.setattr(s, "openai_api_key", SecretStr("  "))
+        ai_client.set_client_for_tests(None)
+        assert not ai_client.configured()  # chosen provider has no key
+    finally:
+        ai_client.set_client_for_tests(None)
+
+
+def test_the_openai_client_end_to_end_against_a_scripted_server(journal):
+    """The real OpenAI SDK path: Anthropic-format requests become Chat Completions and come back as content blocks."""
+    import threading
+
+    from tests.fake_claude import LAST, serve
+
+    srv = serve(0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{srv.server_address[1]}/v1"
+        ai_client.set_client_for_tests(ai_client.OpenAIClient("sk-openai-test", url, 10, "gpt-5.5"))
+        body = journal.post("/api/v1/ai/ask", json={"question": "How am I doing?"}).json()
+        status = journal.get("/api/v1/ai/status").json()
+    finally:
+        srv.shutdown()
+        ai_client.set_client_for_tests(None)
+    assert body["status"] == "ok", body
+    assert "Net P&L is $260.45 over 5 closed trades [E1]" in body["answer"]
+    assert body["model"] == "gpt-5.5" and body["evidence"][0]["tool"] == "performance_summary"
+    assert status["provider"] == "openai" and status["model"] == "gpt-5.5" and status["fallbacks"] is False
+    req = LAST["body"]
+    assert LAST["path"] == "/v1/chat/completions" and LAST["headers"]["authorization"] == "Bearer sk-openai-test"
+    assert req["model"] == "gpt-5.5" and req["reasoning_effort"] == "medium"
+    assert req["response_format"]["json_schema"]["strict"] is True
+    assert all(t["type"] == "function" and t["function"]["strict"] for t in req["tools"])
+    assert [m["role"] for m in req["messages"]] == ["developer", "user", "assistant", "tool"]
+    assert req["messages"][2]["tool_calls"][0]["function"]["name"] == "performance_summary"
+    assert req["messages"][3]["tool_call_id"] == req["messages"][2]["tool_calls"][0]["id"]

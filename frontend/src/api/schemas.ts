@@ -694,6 +694,7 @@ export const backtestVerify = z.object({
 
 export const aiStatus = z.object({
   enabled: z.boolean(),
+  provider: z.string().nullable().optional(),
   model: z.string().nullable(),
   fallbacks: z.boolean(),
   reason: z.string().nullable(),

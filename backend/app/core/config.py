@@ -65,15 +65,22 @@ class Settings(BaseSettings):
     # A day that failed to download is retried after this many minutes.
     marketdata_error_retry_minutes: int = 30
 
-    # AI coach (Claude). Uses the operator's own Anthropic API key; without one the coach is switched off and nothing
-    # is sent anywhere. ANTHROPIC_API_KEY is accepted too, for native development.
+    # AI coach. Uses the operator's own key for Anthropic (Claude) or OpenAI; without one the coach is switched off and
+    # nothing is sent anywhere. "auto" uses Anthropic when its key is set, otherwise OpenAI. ANTHROPIC_API_KEY and
+    # OPENAI_API_KEY are accepted too, for native development.
+    ai_provider: Literal["auto", "anthropic", "openai"] = "auto"
+    openai_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("EL_OPENAI_API_KEY", "OPENAI_API_KEY")
+    )
+    openai_base_url: str | None = None
+    openai_model: str = "gpt-5.5"
     anthropic_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("EL_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")
     )
     anthropic_base_url: str | None = None
-    ai_model: str = "claude-opus-5-5"
+    ai_model: str = "claude-opus-5-5"  # Anthropic model
     ai_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
-    ai_fallbacks: bool = True  # server-side refusal fallbacks (fallbacks: "default")
+    ai_fallbacks: bool = True  # Anthropic server-side refusal fallbacks (fallbacks: "default")
     ai_max_tokens: int = 8000  # per model call
     ai_max_tool_rounds: int = 6  # model calls that may request tools, per answer
     ai_max_tool_calls: int = 16  # tool executions per answer

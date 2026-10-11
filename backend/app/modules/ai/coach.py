@@ -194,11 +194,12 @@ def ask(db: Session, user_id: UUID, *, kind: str, prompt: str, question: str, tr
     ratelimit.hit(f"ai:{user_id}", s.ai_rate_limit, s.ai_rate_window_seconds)
     client = get_client()
     ctx = ToolContext(db=db, user_id=user_id)
-    run = Run(model=s.ai_model)
+    model = getattr(client, "model", None) or s.ai_model
+    run = Run(model=model)
     started = time.monotonic()
     messages: list[dict] = [{"role": "user", "content": f"Today is {utcnow().date().isoformat()} (UTC).\n\n{prompt}"}]
     params = {
-        "model": s.ai_model,
+        "model": model,
         "max_tokens": s.ai_max_tokens,
         "system": SYSTEM_PROMPT,
         "tools": [t.definition() for t in TOOLS],
