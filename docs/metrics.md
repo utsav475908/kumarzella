@@ -61,7 +61,7 @@ Every financial figure in EdgeLedger is computed in the backend, by `app/modules
 | Risk-limit violations | Trades whose initial risk exceeded the account's max risk per trade. |
 | Losses beyond planned risk | Closed trades with R < −1. |
 | Daily loss-limit breaches | Session dates where the account's net P&L fell below minus its daily loss limit. |
-| MAE and MFE | Not computed yet. They need historical market data (Phase 4). |
+| MAE and MFE | Not computed yet. They need historical market data (Phase 5). |
 
 ## Regression fixture
 

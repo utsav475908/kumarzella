@@ -13,7 +13,7 @@ backend/   FastAPI modular monolith: SQLAlchemy 2 + Alembic + PostgreSQL, Redis,
            app/core      config, db, money (Decimal helpers), security, CSRF, rate limiting, logging, storage
            app/modules   auth, accounts, instruments, imports, executions, positions, trades, journal,
                          playbooks, attachments, audit, analytics
-                         (placeholder packages for Phase 4+: marketdata, replay, backtesting, ai, billing, broker_adapters)
+                         (placeholder packages for Phases 5 to 8: marketdata, replay, backtesting, ai, billing, broker_adapters)
 docker-compose.yml  db, redis, minio (S3), migrate, api, worker, web (nginx serving the SPA and proxying /api)
 ```
 
@@ -136,19 +136,23 @@ The journey registers a user, then creates an account and imports `fixture_a.csv
   - Notes, tags, playbook assignment, day notes, and image attachments (sniffed by type and stored privately on local disk or S3).
   - Manual trades.
   - Previous and next navigation.
-- Dashboard: net P&L and all the KPIs in docs/metrics.md, equity curve, daily P&L, P&L by hour, weekday, symbol, tag and playbook, distribution, and a risk-discipline panel. Every chart drills into the filtered trade list.
+### Phase 3: financial engine and dashboard
+
+- Every metric in [docs/metrics.md](docs/metrics.md) is computed centrally in the analytics module and checked against hand-computed fixtures.
+- Dashboard: net P&L and the KPIs, equity curve, daily P&L, P&L by hour, weekday, symbol, tag and playbook, distribution, and a risk-discipline panel. Every chart drills into the filtered trade list.
 - Calendar: monthly P&L heat calendar per session date, with day drill-down.
 - One shared filter set across the dashboard, trades and calendar, kept in the URL:
   - account, date range, symbol, asset class, playbook, tag
   - direction, session, status, outcome
   - P&L range, entry hour, weekday, text search
-
-### Phase 3: playbooks and reporting
-
-- Playbooks with rules, criteria and checklists, and per-playbook performance reports. Trades with no playbook appear as "No playbook".
 - Reports are per currency, and amounts in different currencies are never summed or converted.
 - Light and dark themes with colorblind-safe gain and loss colors.
 - A synthetic demo dataset that is clearly labelled.
+
+### Started early from Phase 4
+
+- Basic playbooks (name and description) that trades can be assigned to, with a per-playbook performance report. Trades with no playbook appear as "No playbook".
+- Versioned rules, checklists and rule adherence are not built yet (see the next milestone).
 
 ## Verification status (2026-10-10)
 
@@ -165,7 +169,7 @@ The S3 code path (`S3Storage`) is unit-level only. It has not been exercised aga
 ## Known limitations
 
 - No exchange holiday calendars. Session dates follow the weekday and roll-time rules only.
-- MAE and MFE, the replay, and price charts beyond the plotted fills all need historical market data, which arrives in Phase 4.
+- MAE and MFE, the replay, and price charts beyond the plotted fills all need historical market data, which arrives in Phase 5.
 - A position that was already open before the first imported execution cannot be detected. Its closing fills would start a new trade, so import complete history.
 - Each CSV import targets one account. Multi-account broker files must be split first.
 - The UI shows times in the browser's local timezone. Session dates and hour buckets use market time.
@@ -173,12 +177,15 @@ The S3 code path (`S3Storage`) is unit-level only. It has not been exercised aga
 - Billing, the AI coach, and both kinds of backtesting are placeholder modules with no endpoints.
 - Email verification and password reset are not implemented, because no mail service is configured.
 
-## Next milestone: Phase 4
+## Next milestone: Phase 4 (advanced reports, strategy playbooks, trade annotations)
 
-1. Market-data module: a provider interface, licensed historical OHLCV ingestion with a cached bar store, and a clear statement of licensing and attribution for each provider.
-2. Candlestick trade charts with fills overlaid, plus MAE and MFE, and best exit, computed in analytics.
-3. Trade replay: step through bars around a trade with the journal alongside.
-4. Exchange holiday calendars for session dates.
-5. Broker adapter interface. The first adapter is read-only and imports executions; it never places orders.
+Phase numbers follow the project specification.
+
+1. Versioned playbooks: setup, instrument and timeframe, permitted sessions, entry, exit, stop and target rules, sizing and risk limits, invalidation conditions, examples, screenshots, and pre-trade and post-trade checklists.
+2. Rule adherence with explicit criteria. Facts the system can verify are kept apart from judgments the trader confirms, and adherence is reported separately from profitability.
+3. Advanced reports: long versus short, rule adherence, playbook comparison and trading-cost breakdowns.
+4. Trade annotations and mistake categories.
+
+After that comes Phase 5: one market-data provider behind a provider-independent interface, candlestick charts with fills, MAE and MFE, and trade replay.
 
 See also [docs/metrics.md](docs/metrics.md) and [docs/security-and-compliance.md](docs/security-and-compliance.md).

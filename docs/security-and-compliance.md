@@ -58,11 +58,11 @@ EdgeLedger is a journal and analytics tool:
 - Enable versioning or object lock on the attachment bucket.
 - Redis holds only rate-limit counters and the job queue, so it does not need a backup. An import that was queued but never finished can simply be committed again.
 
-## Market data licensing (Phase 4)
+## Market data licensing (Phase 5)
 
 - No market data ships with EdgeLedger today.
 - Historical or real-time data from an exchange or a vendor is subject to that provider's licence. That usually covers display limits, redistribution, and the professional or non-professional status of the user.
-- The Phase 4 market-data module will:
+- The Phase 5 market-data module will:
   - Record the provider and the licence terms for each data source.
   - Show attribution where the provider requires it.
   - Cache bars per user or per deployment, as the licence allows.
