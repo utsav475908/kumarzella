@@ -4,8 +4,8 @@ import type { ExecutionLeg } from "../api/schemas";
 import { useChartColors } from "./charts";
 
 /**
- * Plots the trade's own fills over time. This is NOT market data: candles and MAE/MFE need a configured
- * historical-data provider (Phase 5). Prices come from the execution records returned by the API.
+ * Plots the trade's own fills over time. This is NOT market data; it is the fallback when the configured
+ * historical-data provider does not cover the instrument. Prices come from the execution records returned by the API.
  */
 export function ExecutionChart({ legs, stop, target }: { legs: ExecutionLeg[]; stop: string | null; target: string | null }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -46,7 +46,7 @@ export function ExecutionChart({ legs, stop, target }: { legs: ExecutionLeg[]; s
     <div>
       <div ref={ref} className="h-[260px] w-full" data-testid="execution-chart" />
       <p className="mt-2 text-xs text-muted">
-        Execution prices only, from your fills. Candles appear once a historical market-data provider is configured.
+        Execution prices only, from your fills.
       </p>
     </div>
   );

@@ -73,6 +73,8 @@ export const trade = z.object({
   planned_risk_amount: moneyN,
   initial_risk: moneyN,
   r_multiple: moneyN,
+  mae: moneyN.optional(),
+  mfe: moneyN.optional(),
   playbook_id: z.string().nullable(),
   playbook_name: z.string().nullable(),
   followed_plan: z.boolean().nullable(),
@@ -272,7 +274,17 @@ export const dashboard = z.object({
     mistakes: z.array(z.object({ tag: z.string(), trades: z.number(), net_pnl: moneyN })),
     note: z.string(),
   }),
-  mae_mfe: z.object({ available: z.boolean(), reason: z.string() }),
+  excursions: z.object({
+    available: z.boolean(),
+    trades_with_data: z.number(),
+    closed_trades: z.number(),
+    avg_mae: moneyN,
+    avg_mfe: moneyN,
+    avg_mae_r: moneyN,
+    avg_mfe_r: moneyN,
+    mfe_capture: moneyN,
+    note: z.string(),
+  }),
 });
 export type Dashboard = z.infer<typeof dashboard>;
 
@@ -284,3 +296,123 @@ export const calendar = z.object({
   summary: z.object({ net_pnl: money, trading_days: z.number(), profitable_days: z.number() }).passthrough(),
 });
 export type Calendar = z.infer<typeof calendar>;
+
+// ---------------------------------------------------------------- market data and replay
+
+export const providerInfo = z.object({
+  name: z.string(),
+  display_name: z.string(),
+  asset_classes: z.array(z.string()),
+  granularity: z.string(),
+  sides: z.array(z.string()),
+  attribution: z.string(),
+  licence_note: z.string(),
+  volume_note: z.string(),
+});
+export type ProviderInfo = z.infer<typeof providerInfo>;
+
+export const marketDataInfo = z.object({
+  enabled: z.boolean(),
+  provider: providerInfo.nullable(),
+  timeframes: z.array(z.string()),
+  symbols: z.array(z.string()).optional(),
+});
+
+/** One candle. t is the bar open in UNIX seconds (UTC); prices are decimal strings. */
+export const bar = z.object({ t: z.number(), o: money, h: money, l: money, c: money, v: money });
+export type Bar = z.infer<typeof bar>;
+
+export const fillMarker = z.object({ t: z.number(), ts: z.string(), side: z.enum(["buy", "sell"]), quantity: money, price: money });
+export type FillMarker = z.infer<typeof fillMarker>;
+
+export const coverage = z.object({
+  status: z.string(),
+  pending_days: z.array(z.string()),
+  failed_days: z.array(z.object({ day: z.string(), error: z.string() })),
+  unpublished_days: z.array(z.string()),
+});
+
+export const chartStatus = z.enum(["ready", "pending", "partial", "unavailable", "unsupported"]);
+
+export const tradeChart = z.object({
+  status: chartStatus,
+  reason: z.string().optional(),
+  provider: providerInfo.nullable(),
+  symbol: z.string().optional(),
+  timeframe: z.string().optional(),
+  side: z.string().optional(),
+  coverage: coverage.optional(),
+  bars: z.array(bar),
+  gaps: z.array(z.object({ start: z.string(), end: z.string(), minutes: z.number() })).optional(),
+  markers: z.array(fillMarker),
+  planned_stop_price: moneyN.optional(),
+  planned_target_price: moneyN.optional(),
+  excursions: z
+    .object({
+      mae: money,
+      mfe: money,
+      source: z.string().nullable(),
+      computed_at: z.string().nullable(),
+      r: z.object({ mae_r: money, mfe_r: money }).nullable(),
+      precision: z.string(),
+      mae_at: z.string().optional(),
+      mfe_at: z.string().optional(),
+      minutes_missing: z.number().optional(),
+    })
+    .nullable()
+    .optional(),
+  notes: z.array(z.string()).optional(),
+});
+export type TradeChart = z.infer<typeof tradeChart>;
+
+export const replaySession = z.object({
+  id: z.string(),
+  mode: z.enum(["review", "blind"]),
+  trade_id: z.string().nullable(),
+  title: z.string(),
+  provider: z.string(),
+  symbol: z.string(),
+  timeframe: z.string(),
+  side: z.string(),
+  start_at: z.string(),
+  end_at: z.string(),
+  cursor_at: z.string(),
+  speed: z.number(),
+  completed: z.boolean(),
+  progress: z.number(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type ReplaySession = z.infer<typeof replaySession>;
+
+export const replayBars = replaySession.extend({
+  status: chartStatus,
+  coverage,
+  provider: providerInfo,
+  bars: z.array(bar),
+  markers: z.array(fillMarker),
+  overlay: z
+    .object({
+      planned_stop_price: moneyN,
+      planned_target_price: moneyN,
+      entry_avg_price: moneyN,
+      exit_avg_price: moneyN,
+      playbook: z.string().nullable(),
+      direction: z.string(),
+    })
+    .nullable(),
+});
+export type ReplayBars = z.infer<typeof replayBars>;
+
+export const replayAdvance = replaySession.extend({ bars: z.array(bar) });
+export type ReplayAdvance = z.infer<typeof replayAdvance>;
+
+export const annotation = z.object({
+  id: z.string(),
+  bar_time: z.string(),
+  t: z.number(),
+  price: moneyN,
+  text: z.string(),
+  created_at: z.string(),
+});
+export type Annotation = z.infer<typeof annotation>;

@@ -1,0 +1,28 @@
+import { vi } from "vitest";
+
+/** lightweight-charts draws on canvas, which jsdom lacks. This stand-in records what the components pass to it. */
+export const chartCalls = { data: [] as unknown[][], markers: [] as unknown[][], lines: [] as unknown[] };
+
+vi.mock("lightweight-charts", () => {
+  const series = () => ({
+    setData: (d: unknown[]) => chartCalls.data.push(d),
+    update: () => undefined,
+    createPriceLine: (o: unknown) => { chartCalls.lines.push(o); return o; },
+    removePriceLine: () => undefined,
+  });
+  return {
+    ColorType: { Solid: "solid" },
+    CandlestickSeries: "candles",
+    HistogramSeries: "histogram",
+    LineSeries: "line",
+    createChart: () => ({
+      addSeries: series,
+      priceScale: () => ({ applyOptions: () => undefined }),
+      timeScale: () => ({ fitContent: () => undefined, scrollToRealTime: () => undefined }),
+      subscribeCrosshairMove: () => undefined,
+      subscribeClick: () => undefined,
+      remove: () => undefined,
+    }),
+    createSeriesMarkers: () => ({ setMarkers: (m: unknown[]) => chartCalls.markers.push(m) }),
+  };
+});

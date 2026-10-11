@@ -14,6 +14,11 @@ export const qk = {
   calendar: (q: Query) => ["calendar", q] as const,
   imports: ["imports"] as const,
   presets: ["presets"] as const,
+  marketData: ["marketdata"] as const,
+  tradeChart: (id: string, tf: string) => ["trade-chart", id, tf] as const,
+  replaySessions: ["replay-sessions"] as const,
+  replay: (id: string) => ["replay", id] as const,
+  annotations: (id: string) => ["replay-annotations", id] as const,
 };
 
 export function useMe() {
@@ -46,7 +51,7 @@ export const useTrades = (q: Query) =>
   });
 
 export const useTrade = (id: string) =>
-  useQuery({ queryKey: qk.trade(id), queryFn: () => api(`/trades/${id}`, { schema: s.tradeDetail }) });
+  useQuery({ queryKey: qk.trade(id), queryFn: () => api(`/trades/${id}`, { schema: s.tradeDetail }), enabled: id !== "" });
 
 export const useDashboard = (q: Query) =>
   useQuery({ queryKey: qk.dashboard(q), queryFn: () => api("/analytics/dashboard", { query: q, schema: s.dashboard }) });
@@ -79,3 +84,70 @@ export function useLogout() {
     },
   });
 }
+
+// ---------------------------------------------------------------- market data and replay
+
+export const useMarketDataInfo = () =>
+  useQuery({ queryKey: qk.marketData, queryFn: () => api("/marketdata/provider", { schema: s.marketDataInfo }), staleTime: 300_000 });
+
+/** Polls every 3 s while the server is still fetching provider data (HTTP 202, status "pending"). */
+export const useTradeChart = (id: string, timeframe: string, enabled = true) =>
+  useQuery({
+    queryKey: qk.tradeChart(id, timeframe),
+    queryFn: () => api(`/trades/${id}/chart`, { query: { timeframe }, schema: s.tradeChart }),
+    enabled,
+    refetchInterval: (q) => (q.state.data?.status === "pending" ? 3000 : false),
+  });
+
+export const useReplaySessions = () =>
+  useQuery({ queryKey: qk.replaySessions, queryFn: () => api("/replay/sessions", { schema: z.array(s.replaySession) }) });
+
+export const useReplayBars = (id: string) =>
+  useQuery({
+    queryKey: qk.replay(id),
+    queryFn: () => api(`/replay/sessions/${id}/bars`, { schema: s.replayBars }),
+    refetchInterval: (q) => (q.state.data?.status === "pending" ? 3000 : false),
+    refetchOnWindowFocus: false,
+  });
+
+export const useAnnotations = (id: string) =>
+  useQuery({ queryKey: qk.annotations(id), queryFn: () => api(`/replay/sessions/${id}/annotations`, { schema: z.array(s.annotation) }) });
+
+export function useCreateReplay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) => api("/replay/sessions", { method: "POST", body, schema: s.replaySession }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.replaySessions }),
+  });
+}
+
+export function useDeleteReplay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/replay/sessions/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.replaySessions }),
+  });
+}
+
+export function useAddAnnotation(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { bar_time: string; price?: string; text: string }) =>
+      api(`/replay/sessions/${id}/annotations`, { method: "POST", body, schema: s.annotation }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.annotations(id) }),
+  });
+}
+
+export function useDeleteAnnotation(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (aid: string) => api(`/replay/sessions/${id}/annotations/${aid}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.annotations(id) }),
+  });
+}
+
+export const advanceReplay = (id: string, steps: number) =>
+  api(`/replay/sessions/${id}/advance`, { method: "POST", body: { steps }, schema: s.replayAdvance });
+
+export const patchReplay = (id: string, body: { speed?: number; cursor_at?: string }) =>
+  api(`/replay/sessions/${id}`, { method: "PATCH", body, schema: s.replaySession });

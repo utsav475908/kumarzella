@@ -112,7 +112,7 @@ export function DashboardPage() {
           <Panel title="Recent trades" action={<Link className="text-xs text-accent" to={`/trades${search}`}>All trades</Link>}>
             {recent.isError ? <ErrorState error={recent.error} /> : recent.data ? <TradeTable trades={recent.data.items} search={search} compact /> : <Loading />}
           </Panel>
-          <p className="text-xs text-muted">MAE/MFE: {dash.data.mae_mfe.reason}</p>
+          <ExcursionPanel d={dash.data} />
         </div>
       )}
     </div>
@@ -154,5 +154,29 @@ function RiskPanel({ d, search }: { d: D; search: string }) {
       ))}
       <p className="text-xs text-muted">{r.note}</p>
     </div>
+  );
+}
+
+function ExcursionPanel({ d }: { d: D }) {
+  const e = d.excursions;
+  const c = d.currency;
+  return (
+    <Panel title="Excursions (MAE / MFE)">
+      {e.available ? (
+        <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4" data-testid="excursions">
+          <div><div className="text-xs text-muted">Avg MAE</div><div className="tabular-nums text-loss">{fmtMoney(e.avg_mae, c)}</div>
+            <div className="text-xs text-muted">{fmtR(e.avg_mae_r)}</div></div>
+          <div><div className="text-xs text-muted">Avg MFE</div><div className="tabular-nums text-gain">{fmtMoney(e.avg_mfe, c)}</div>
+            <div className="text-xs text-muted">{fmtR(e.avg_mfe_r)}</div></div>
+          <div><div className="text-xs text-muted">MFE kept</div><div className="tabular-nums">{fmtPct(e.mfe_capture)}</div>
+            <div className="text-xs text-muted">net P&L / MFE</div></div>
+          <div><div className="text-xs text-muted">Coverage</div><div className="tabular-nums">{e.trades_with_data} / {e.closed_trades}</div>
+            <div className="text-xs text-muted">trades with market data</div></div>
+        </div>
+      ) : (
+        <p className="text-sm text-muted">No trades have excursion data yet. Open a forex trade to load its candles.</p>
+      )}
+      <p className="mt-2 text-xs text-muted">{e.note}</p>
+    </Panel>
   );
 }

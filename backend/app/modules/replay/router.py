@@ -215,7 +215,9 @@ def patch_session(
         rs.title = data.title
     if data.cursor_at is not None:
         c = rp.align(_utc(data.cursor_at), rs.timeframe)
-        rs.cursor_at = min(max(c, rs.start_at), rs.end_at)
+        # Blind cursors stay one bar past the start: a cursor at the start marks a session still waiting for data.
+        floor = rs.start_at + rp.tf(rs) if rs.mode == "blind" else rs.start_at
+        rs.cursor_at = min(max(c, floor), rs.end_at)
         if rs.cursor_at >= rs.end_at and rs.completed_at is None:
             rs.completed_at = utcnow()
     db.commit()

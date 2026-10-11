@@ -13,7 +13,8 @@ backend/   FastAPI modular monolith: SQLAlchemy 2 + Alembic + PostgreSQL, Redis,
            app/core      config, db, money (Decimal helpers), security, CSRF, rate limiting, logging, storage
            app/modules   auth, accounts, instruments, imports, executions, positions, trades, journal,
                          playbooks, attachments, audit, analytics
-                         (placeholder packages for Phases 5 to 8: marketdata, replay, backtesting, ai, billing, broker_adapters)
+                         marketdata (provider interface, Dukascopy adapter, candle cache), replay
+                         (placeholder packages for Phases 6 to 8: backtesting, ai, billing, broker_adapters)
 docker-compose.yml  db, redis, minio (S3), migrate, api, worker, web (nginx serving the SPA and proxying /api)
 ```
 
@@ -98,7 +99,18 @@ cd ../frontend && npm run dev &
 npx playwright test          # PW_CHROMIUM=/path/to/chromium to use a preinstalled browser
 ```
 
-The journey registers a user, then creates an account and imports `fixture_a.csv` through the wizard. It checks the dashboard against the hand-computed expected values, then drills into a losing day. Finally it journals a trade with a note, tags and a playbook.
+The market-data journey needs candles. Write the generated test candles (synthetic fixtures in Dukascopy's file format, not market history) and start the API against them:
+
+```bash
+cd backend && python -m tests.make_mirror /tmp/el-mirror
+EL_DUKASCOPY_BASE_URL=file:///tmp/el-mirror EL_DATABASE_URL=postgresql+psycopg://tj:tj@localhost:5432/tradejournal_e2e uvicorn app.main:app --port 8000 &
+```
+
+### Live Dukascopy check
+
+`python -m scripts.check_dukascopy` (in `backend/`) downloads one real day of EURUSD and USDJPY candles and checks the price scale, field order and bid/ask sides. It needs outbound access to `datafeed.dukascopy.com` and no database.
+
+The first journey registers a user, then creates an account and imports `fixture_a.csv` through the wizard. It checks the dashboard against the hand-computed expected values, then drills into a losing day. Finally it journals a trade with a note, tags and a playbook.
 
 ## What is implemented
 
@@ -154,14 +166,42 @@ The journey registers a user, then creates an account and imports `fixture_a.csv
 - Basic playbooks (name and description) that trades can be assigned to, with a per-playbook performance report. Trades with no playbook appear as "No playbook".
 - Versioned rules, checklists and rule adherence are not built yet (see the next milestone).
 
-## Verification status (2026-10-10)
+### Phase 5: historical market data and trade replay
+
+Built ahead of the rest of Phase 4, at the project owner's request, with one provider and one market (Dukascopy, forex).
+
+- **Market data:**
+  - A provider-independent interface (`app/modules/marketdata/providers/base.py`).
+  - The Dukascopy adapter decodes the datafeed's LZMA "bi5" files of 1-minute bid and ask candles for 28 currency pairs. It checks every record (low ≤ open/close ≤ high, ordered times), so a format change fails loudly instead of producing wrong prices.
+  - Retries with backoff. An HTTP 404 means no data for that day.
+- **Cache:**
+  - Candles are stored per provider, symbol, side and minute (`market_candles`).
+  - A coverage row per UTC day (`market_data_coverage`) records complete, error or queued.
+  - A day is downloaded once. A failed day is retried after 30 minutes.
+  - More than 3 missing days go to the Celery worker; the API answers HTTP 202 and the UI polls.
+  - Only completed UTC days are requested.
+- **Timeframes and gaps:** 1-minute bars are aggregated on read to 5m, 15m, 30m, 1h or 4h, aligned to UTC. Gap detection reports runs of 5 or more market-open minutes with no ticks.
+- **Trade charts:** candlesticks with volume, fills as markers, and planned stop and target lines. Hovering shows OHLC and volume. Instruments the provider doesn't cover fall back to the fills-only chart, with the reason shown.
+- **MAE and MFE:**
+  - Computed in `app/modules/analytics/excursions.py` from bid bars for longs and ask bars for shorts (see [docs/metrics.md](docs/metrics.md)).
+  - Stored on the trade and cleared when its fills change.
+  - Shown on the trade, as averages on the dashboard (including R and MFE kept), and can be recomputed in bulk from Settings.
+- **Replay:**
+  - Saved sessions with a server-side cursor.
+  - **Review mode** replays a real trade, with fills appearing as the clock passes them.
+  - **Blind mode** reveals bars from the server one step at a time, so a bar that closes after the cursor is never sent, not even a bar that is still forming at a higher timeframe.
+  - Play, pause, step, seek, and speeds of 1 to 16 bars per second (at most four requests a second).
+  - Progress bar, annotations on any revealed bar, trade notes and playbook overlay, and save and resume.
+  - The player is an explicit state machine (`src/lib/replayMachine.ts`) with the states loading, ready, playing, paused, seeking, completed and error.
+
+## Verification status (2026-10-11)
 
 | Check | How it was run | Result |
 |---|---|---|
-| Backend pytest: 77 tests covering auth, authorization, imports, the position engine, instrument rules, the journal and metrics regressions | Natively, against PostgreSQL 16 and Redis 7 | pass |
+| Backend pytest: 107 tests covering auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE and replay | Natively, against PostgreSQL 16 and Redis 7 | pass |
 | Ruff format and lint; `alembic check` | Natively | clean |
-| Frontend vitest (15), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
-| Playwright journey (2 tests) | Natively, API and Vite against the `tradejournal_e2e` database, headless Chromium | pass |
+| Frontend vitest (27, including the replay state machine and chart states), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
+| Playwright journeys (3 tests, including forex trade chart, MAE/MFE and a review replay) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
 | Compose stack: all images built; db, redis, migrate, api, worker and web healthy; fixture A imported through nginx on :8080 with dashboard net `260.45`, including a run forced through the Celery worker | Docker, with MinIO swapped for local storage (MinIO's image was not reachable from the build machine) | pass |
 
 The S3 code path (`S3Storage`) is unit-level only. It has not been exercised against a real MinIO or S3 here.
@@ -169,7 +209,10 @@ The S3 code path (`S3Storage`) is unit-level only. It has not been exercised aga
 ## Known limitations
 
 - No exchange holiday calendars. Session dates follow the weekday and roll-time rules only.
-- MAE and MFE, the replay, and price charts beyond the plotted fills all need historical market data, which arrives in Phase 5.
+- Market data covers forex only (Dukascopy). Stocks, futures and options still show the fills-only chart and have no MAE, MFE or replay.
+- Dukascopy prices come from Dukascopy's own liquidity, so a broker's fills can sit slightly outside the candles. MAE and MFE use 1-minute bars: minutes that contain a fill are evaluated at the fill prices only, so excursions inside those minutes can be understated. There is no tick-level replay.
+- Dukascopy describes its data as for personal use. Each user's charts are fetched for their own trades; displaying the data commercially needs Dukascopy's written permission (see docs/security-and-compliance.md).
+- The current UTC day has no candles until Dukascopy publishes it.
 - A position that was already open before the first imported execution cannot be detected. Its closing fills would start a new trade, so import complete history.
 - Each CSV import targets one account. Multi-account broker files must be split first.
 - The UI shows times in the browser's local timezone. Session dates and hour buckets use market time.
@@ -177,15 +220,15 @@ The S3 code path (`S3Storage`) is unit-level only. It has not been exercised aga
 - Billing, the AI coach, and both kinds of backtesting are placeholder modules with no endpoints.
 - Email verification and password reset are not implemented, because no mail service is configured.
 
-## Next milestone: Phase 4 (advanced reports, strategy playbooks, trade annotations)
+## Next milestone: rest of Phase 4 (advanced reports, strategy playbooks, trade annotations)
 
-Phase numbers follow the project specification.
+Phase numbers follow the project specification. Phase 5 (market data and replay) was built first at the project owner's request.
 
 1. Versioned playbooks: setup, instrument and timeframe, permitted sessions, entry, exit, stop and target rules, sizing and risk limits, invalidation conditions, examples, screenshots, and pre-trade and post-trade checklists.
 2. Rule adherence with explicit criteria. Facts the system can verify are kept apart from judgments the trader confirms, and adherence is reported separately from profitability.
-3. Advanced reports: long versus short, rule adherence, playbook comparison and trading-cost breakdowns.
-4. Trade annotations and mistake categories.
+3. Advanced reports: rule adherence, playbook comparison, excursion analysis (MAE/MFE by playbook), and trading-cost breakdowns.
+4. Trade annotations on the trade chart and mistake categories.
 
-After that comes Phase 5: one market-data provider behind a provider-independent interface, candlestick charts with fills, MAE and MFE, and trade replay.
+After that comes Phase 6: manual backtesting on top of the blind replay engine, with a deterministic order simulator.
 
 See also [docs/metrics.md](docs/metrics.md) and [docs/security-and-compliance.md](docs/security-and-compliance.md).

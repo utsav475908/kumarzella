@@ -133,3 +133,13 @@ def test_replay_is_owner_only(auth_client, other_client, mirror):
     r = other_client.post("/api/v1/replay/sessions", json={"mode": "review", "trade_id": t["id"]})
     assert r.status_code == 404
     assert auth_client.delete(f"/api/v1/replay/sessions/{sid}").status_code == 204
+
+
+def test_export_includes_replays_but_not_provider_candles(auth_client, mirror):
+    s = blind(auth_client)
+    auth_client.post(
+        f"/api/v1/replay/sessions/{s['id']}/annotations", json={"bar_time": "2024-01-17T08:10:00Z", "text": "n"}
+    )
+    exp = auth_client.get("/api/v1/exports/me").json()
+    assert [r["id"] for r in exp["replay_sessions"]] == [s["id"]] and len(exp["replay_annotations"]) == 1
+    assert not any("candle" in k for k in exp)

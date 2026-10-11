@@ -61,7 +61,10 @@ Every financial figure in EdgeLedger is computed in the backend, by `app/modules
 | Risk-limit violations | Trades whose initial risk exceeded the account's max risk per trade. |
 | Losses beyond planned risk | Closed trades with R < −1. |
 | Daily loss-limit breaches | Session dates where the account's net P&L fell below minus its daily loss limit. |
-| MAE and MFE | Not computed yet. They need historical market data (Phase 5). |
+| MAE | Maximum adverse excursion: the lowest open P&L while the trade was open, capped at 0, gross of fees. Open P&L = multiplier × (position × mark − Σ signed fill qty × fill price), which is the same under average-cost and FIFO. Longs are marked at the bid low, shorts at the ask high. Only minutes wholly inside a period of constant position use bar extremes; a minute that contains a fill is evaluated at the fill prices. |
+| MFE | Maximum favourable excursion: the highest open P&L while the trade was open, floored at 0. Same rules as MAE, with longs marked at the bid high and shorts at the ask low. |
+| MAE and MFE in R | MAE ÷ initial risk and MFE ÷ initial risk, for trades with a known positive risk. |
+| MFE kept | Σ net P&L ÷ Σ MFE over trades that have excursion data. |
 
 ## Regression fixture
 
@@ -72,4 +75,4 @@ Every financial figure in EdgeLedger is computed in the backend, by `app/modules
 - win rate 0.75
 - max drawdown 202
 
-`tests/test_metrics.py` checks every aggregate above against that file. The Playwright journey checks the same numbers in the UI.
+`tests/test_metrics.py` checks every aggregate above against that file. `tests/test_marketdata.py` checks MAE and MFE against hand-computed cases: a long where the fill minutes hold more extreme prices that must be ignored (MAE −5, MFE 8), a short marked at the ask, and a scale-in. The Playwright journey checks the same numbers in the UI.

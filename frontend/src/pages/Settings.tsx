@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { api } from "../api/client";
-import { qk, useImports, useTags } from "../api/hooks";
+import { qk, useImports, useMarketDataInfo, useTags } from "../api/hooks";
 import { Badge, Button, Empty, ErrorState, Field, Input, Loading, Panel, Select, errorMessage } from "../components/ui";
 import { fmtDateTime } from "../lib/format";
 
@@ -25,6 +25,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Settings</h1>
+      <MarketDataPanel />
       <Panel title="Tags and mistake categories">
         {tags.isLoading ? <Loading /> : tags.isError ? <ErrorState error={tags.error} /> : (
           <div className="mb-3 flex flex-wrap gap-2">
@@ -94,5 +95,35 @@ export function ImportsPage() {
         )}
       </Panel>
     </div>
+  );
+}
+
+function MarketDataPanel() {
+  const info = useMarketDataInfo();
+  const qc = useQueryClient();
+  const refresh = useMutation({
+    mutationFn: () => api("/marketdata/excursions/refresh", {
+      method: "POST", body: {},
+      schema: z.object({ computed: z.number(), pending_or_incomplete: z.number(), unsupported: z.number() }),
+    }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard"] }),
+  });
+  return (
+    <Panel title="Market data">
+      {info.isLoading ? <Loading /> : info.isError ? <ErrorState error={info.error} /> : !info.data?.enabled || !info.data.provider ? (
+        <p className="text-sm text-muted">Historical market data is disabled on this server.</p>
+      ) : (
+        <div className="space-y-2 text-sm">
+          <p><span className="font-medium">{info.data.provider.display_name}</span> · {info.data.provider.asset_classes.join(", ")} · {info.data.provider.granularity} ({info.data.provider.sides.join(" and ")})</p>
+          <p className="text-xs text-muted">{info.data.provider.attribution}. {info.data.provider.licence_note}</p>
+          <p className="text-xs text-muted">Data is downloaded the first time a trade chart or replay needs it, then served from the cache. Only completed UTC days are available.</p>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" disabled={refresh.isPending} onClick={() => refresh.mutate()}>{refresh.isPending ? "Computing…" : "Compute MAE/MFE for my trades"}</Button>
+            {refresh.data && <span className="text-xs text-muted" role="status">{refresh.data.computed} computed, {refresh.data.pending_or_incomplete} waiting for data, {refresh.data.unsupported} not covered</span>}
+            {refresh.isError && <span className="text-xs text-loss" role="alert">{errorMessage(refresh.error)}</span>}
+          </div>
+        </div>
+      )}
+    </Panel>
   );
 }

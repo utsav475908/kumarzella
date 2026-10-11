@@ -5,7 +5,7 @@ import { z } from "zod";
 import { api } from "../api/client";
 import { useInvalidateTradeData, usePlaybooks, useTags, useTrade } from "../api/hooks";
 import type { TradeDetail as TD } from "../api/schemas";
-import { ExecutionChart } from "../components/ExecutionChart";
+import { TradeChartPanel } from "../components/TradeChartPanel";
 import { Badge, Button, ErrorState, Field, Input, Loading, Panel, Select, errorMessage } from "../components/ui";
 import { fmtDateTime, fmtDuration, fmtMoney, fmtNum, fmtR, pnlClass, trimDecimal } from "../lib/format";
 
@@ -50,6 +50,9 @@ export function TradeDetailPage() {
           ["Entry avg", fmtNum(d.entry_avg_price, 6), ""],
           ["Exit avg", fmtNum(d.exit_avg_price, 6), ""],
           ["Held", fmtDuration(d.holding_seconds), ""],
+          ...(d.mae != null && d.mfe != null
+            ? [["MAE", fmtMoney(d.mae, c), "text-loss"], ["MFE", fmtMoney(d.mfe, c), "text-gain"]]
+            : []),
         ].map(([k, v, cls]) => (
           <div key={k} className="rounded-xl border border-line bg-panel p-3">
             <div className="text-xs text-muted">{k}</div>
@@ -59,8 +62,8 @@ export function TradeDetailPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title="Fills" className="xl:col-span-2">
-          <ExecutionChart legs={d.executions} stop={d.planned_stop_price} target={d.planned_target_price} />
+        <Panel title="Chart" className="xl:col-span-2">
+          <TradeChartPanel d={d} />
         </Panel>
         <Panel title="Journal"><JournalForm d={d} /></Panel>
       </div>

@@ -8,6 +8,7 @@ import { CalendarPage } from "./pages/CalendarPage";
 import { DashboardPage } from "./pages/Dashboard";
 import { ImportWizard } from "./pages/ImportWizard";
 import { PlaybookReport, PlaybooksPage } from "./pages/Playbooks";
+import { ReplayListPage, ReplayPlayerPage } from "./pages/Replay";
 import { ImportsPage, SettingsPage } from "./pages/Settings";
 import { TradeDetailPage } from "./pages/TradeDetail";
 import { TradesPage } from "./pages/Trades";
@@ -33,6 +34,8 @@ export default function App() {
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="import" element={<ImportWizard />} />
         <Route path="imports" element={<ImportsPage />} />
+        <Route path="replay" element={<ReplayListPage />} />
+        <Route path="replay/:id" element={<ReplayPlayerPage />} />
         <Route path="playbooks" element={<PlaybooksPage />} />
         <Route path="playbooks/:id" element={<PlaybookReport />} />
         <Route path="accounts" element={<AccountsPage />} />

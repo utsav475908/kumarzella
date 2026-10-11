@@ -17,6 +17,7 @@ from app.modules.auth.models import User
 from app.modules.executions.models import Execution
 from app.modules.journal.models import DayNote, Tag, TradeNote, TradeTag
 from app.modules.playbooks.models import Playbook
+from app.modules.replay.models import ReplayAnnotation, ReplaySession
 from app.modules.trades.models import Trade, TradeExecution
 
 router = APIRouter(prefix="/exports", tags=["exports"])
@@ -43,6 +44,9 @@ def export_me(user: User = Depends(get_current_user), db: Session = Depends(get_
         "trade_notes": _rows(db, TradeNote, TradeNote.user_id == user.id),
         "day_notes": _rows(db, DayNote, DayNote.user_id == user.id),
         "playbooks": _rows(db, Playbook, Playbook.user_id == user.id),
+        # Replays are the user's own records. Provider candles are not: they stay out of exports (licence terms).
+        "replay_sessions": _rows(db, ReplaySession, ReplaySession.user_id == user.id),
+        "replay_annotations": _rows(db, ReplayAnnotation, ReplayAnnotation.user_id == user.id),
     }
     audit.record(db, user_id=user.id, action="user.exported", entity_type="user", entity_id=user.id)
     db.commit()

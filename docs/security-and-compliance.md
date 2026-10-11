@@ -58,12 +58,14 @@ EdgeLedger is a journal and analytics tool:
 - Enable versioning or object lock on the attachment bucket.
 - Redis holds only rate-limit counters and the job queue, so it does not need a backup. An import that was queued but never finished can simply be committed again.
 
-## Market data licensing (Phase 5)
+## Market data licensing
 
-- No market data ships with EdgeLedger today.
-- Historical or real-time data from an exchange or a vendor is subject to that provider's licence. That usually covers display limits, redistribution, and the professional or non-professional status of the user.
-- The Phase 5 market-data module will:
-  - Record the provider and the licence terms for each data source.
-  - Show attribution where the provider requires it.
-  - Cache bars per user or per deployment, as the licence allows.
-  - Never redistribute raw data through exports.
+- EdgeLedger ships with one provider: Dukascopy's public historical datafeed (forex, 1-minute bid/ask candles), published by Dukascopy Bank SA.
+- Dukascopy's download tools describe this data as for personal use. We found no public licence for commercial redistribution or display.
+- How EdgeLedger uses it:
+  - Data is downloaded only when a user opens a chart or replay for their own trades, or starts their own blind replay.
+  - Every chart and replay shows the attribution "Historical prices: Dukascopy Bank SA" and the licence note.
+  - Candles are cached per deployment and never included in user exports.
+- **Before offering EdgeLedger commercially with this data, get written permission from Dukascopy, or switch to a provider whose plan allows display to end users.** The provider interface (`app/modules/marketdata/providers/base.py`) lets another adapter replace Dukascopy without changing charts, MAE/MFE or replay.
+- No other market data ships with EdgeLedger. Data from an exchange or a vendor is subject to that provider's licence, which usually covers display limits, redistribution, and the professional or non-professional status of each user.
+- Set `EL_MARKETDATA_PROVIDER=none` to turn fetching off entirely.

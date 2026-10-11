@@ -1,3 +1,4 @@
+import type { TradeDetail } from "../api/schemas";
 /** Labelled test fixture shaped like the analytics API response. Values are arbitrary test data. */
 export function dashboardPayload(over: Record<string, unknown> = {}) {
   const group = (key: string, label: string, net: string) => ({
@@ -35,7 +36,27 @@ export function dashboardPayload(over: Record<string, unknown> = {}) {
       trades_with_planned_risk: 0, planned_risk_coverage: "0", risk_limit_violations: [], losses_beyond_planned_risk: [],
       daily_loss_limit_breaches: [], plan_adherence: {}, mistakes: [], note: "Plan adherence is self-reported.",
     },
-    mae_mfe: { available: false, reason: "No market data." },
+    excursions: {
+      available: false, trades_with_data: 0, closed_trades: 4, avg_mae: null, avg_mfe: null, avg_mae_r: null,
+      avg_mfe_r: null, mfe_capture: null, note: "MAE/MFE come from historical candles.",
+    },
     ...over,
   };
 }
+
+const leg = (over: Partial<TradeDetail["executions"][number]>) => ({
+  execution_id: "e1", executed_at: "2024-01-16T10:00:30Z", side: "buy", quantity: "10000", price: "1.09", commission: "0.5",
+  fees: "0", source: "import", source_execution_id: "FX1", role: "open", allocated_quantity: "10000", fees_allocated: "0.5",
+  realized_pnl: "0", position_after: "10000", shared_with_other_trade: false, source_ref: null, ...over,
+});
+
+export const tradeDetailFixture: TradeDetail = {
+  id: "t1", account_id: "a1", account_name: "FX", symbol: "EURUSD", asset_class: "forex", multiplier: "1", direction: "long",
+  status: "closed", origin: "imported", currency: "USD", opened_at: "2024-01-16T10:00:30Z", closed_at: "2024-01-16T10:05:20Z",
+  session_date: "2024-01-16", entry_session: "regular", entry_qty: "10000", exit_qty: "10000", peak_qty: "10000", open_qty: "0",
+  entry_avg_price: "1.09", exit_avg_price: "1.0905", gross_pnl: "5", fees: "1", net_pnl: "4", holding_seconds: 290, execution_count: 2,
+  planned_stop_price: null, planned_target_price: null, planned_risk_amount: null, initial_risk: null, r_multiple: null,
+  mae: null, mfe: null, playbook_id: null, playbook_name: null, followed_plan: null, rating: null, tags: [], is_demo: false,
+  executions: [leg({}), leg({ execution_id: "e2", executed_at: "2024-01-16T10:05:20Z", side: "sell", price: "1.0905", role: "close", position_after: "0" })],
+  notes: [], day_note: null, attachments: [], audit: [], prev_trade_id: null, next_trade_id: null, calculation: {},
+};
