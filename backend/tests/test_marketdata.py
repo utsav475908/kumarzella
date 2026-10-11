@@ -91,6 +91,35 @@ def test_http_404_is_no_data_and_5xx_is_retried_then_unavailable(monkeypatch):
     assert calls[0] == "/datafeed/EURUSD/2024/00/16/BID_candles_min_1.bi5"
 
 
+def test_throttling_429_waits_as_told_then_succeeds(monkeypatch):
+    # Dukascopy answers bursts with HTTP 429 (seen in the live check on 2024-01-16 data).
+    from app.modules.marketdata.providers import dukascopy as dk
+
+    slept: list[float] = []
+    monkeypatch.setattr(dk.time, "sleep", slept.append)
+    answers = iter(
+        [httpx.Response(429, headers={"Retry-After": "7"}), httpx.Response(429), httpx.Response(200, content=b"")]
+    )
+    p = DukascopyProvider("https://feed.test/datafeed", retries=6, min_interval=0,
+                          client=httpx.Client(transport=httpx.MockTransport(lambda req: next(answers))))  # fmt: skip
+    assert p.fetch_day("EURUSD", DAY, "bid") == []
+    assert [x for x in slept if x > 0] == [7.0, 4.0]  # Retry-After, then 2 s x 2^1
+    assert dk.retry_delay(9, httpx.Response(429)) == 30.0 and dk.retry_delay(9, None) == 10.0
+    assert dk.retry_delay(0, httpx.Response(429, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"})) == 2.0
+
+
+def test_requests_are_paced(monkeypatch):
+    from app.modules.marketdata.providers import dukascopy as dk
+
+    slept: list[float] = []
+    monkeypatch.setattr(dk.time, "sleep", slept.append)
+    p = DukascopyProvider("https://feed.test/datafeed", min_interval=0.5,
+                          client=httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(404))))  # fmt: skip
+    p.fetch_day("EURUSD", DAY, "bid")
+    p.fetch_day("EURUSD", DAY, "ask")
+    assert slept and 0 < slept[-1] <= 0.5  # the second request waited for its slot
+
+
 def test_symbol_support():
     p = DukascopyProvider("file:///nowhere")
     assert p.provider_symbol("eur/usd", "forex") == "EURUSD"

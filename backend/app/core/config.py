@@ -55,8 +55,11 @@ class Settings(BaseSettings):
     # HTTP mirror or a file:// directory laid out like the datafeed (used by tests and offline development).
     marketdata_provider: Literal["dukascopy", "none"] = "dukascopy"
     dukascopy_base_url: str = "https://datafeed.dukascopy.com/datafeed"
-    marketdata_timeout_seconds: float = 15.0
-    marketdata_retries: int = 2
+    # Dukascopy throttles bursts (HTTP 429) and is sometimes slow to answer; a live check needed a 60 s timeout and
+    # several retries. Requests from one process are spaced at least marketdata_min_interval_seconds apart.
+    marketdata_timeout_seconds: float = 60.0
+    marketdata_retries: int = 6
+    marketdata_min_interval_seconds: float = 0.5
     # Requests that need more uncached days than this are queued to the worker instead of fetched inline.
     marketdata_inline_max_days: int = 3
     # A day that failed to download is retried after this many minutes.

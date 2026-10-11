@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import lzma
 import struct
+import threading
 import time
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -99,13 +100,40 @@ def decode_candles(raw: bytes, day: date, scale: Decimal) -> list[Bar]:
     return bars
 
 
+# Requests from one process share a pace: Dukascopy answers bursts with HTTP 429.
+_pace_lock = threading.Lock()
+_last_request = 0.0
+
+
+def _pace(min_interval: float) -> None:
+    global _last_request
+    with _pace_lock:
+        wait = _last_request + min_interval - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        _last_request = time.monotonic()
+
+
+def retry_delay(attempt: int, response: httpx.Response | None) -> float:
+    """Seconds to wait before the next attempt. A 429 honours Retry-After (in seconds) and otherwise backs off
+    from 2 s; other failures back off from 0.5 s. Both are capped."""
+    if response is not None and response.status_code == 429:
+        try:
+            return min(60.0, max(1.0, float(response.headers.get("Retry-After", ""))))
+        except ValueError:
+            return min(30.0, 2.0 * 2**attempt)
+    return min(10.0, 0.5 * 2**attempt)
+
+
 class DukascopyProvider:
     info = INFO
 
-    def __init__(self, base_url: str, timeout: float = 15.0, retries: int = 2, client: httpx.Client | None = None):
+    def __init__(self, base_url: str, timeout: float = 60.0, retries: int = 6, client: httpx.Client | None = None,
+                 min_interval: float = 0.5):  # fmt: skip
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.retries = retries
+        self.min_interval = min_interval
         self._client = client
 
     def provider_symbol(self, symbol: str, asset_class: str) -> str | None:
@@ -126,6 +154,8 @@ class DukascopyProvider:
         client = self._client or httpx.Client(timeout=self.timeout, headers={"User-Agent": "EdgeLedger/0.4"})
         try:
             for attempt in range(self.retries + 1):
+                r: httpx.Response | None = None
+                _pace(self.min_interval)
                 try:
                     r = client.get(url)
                 except httpx.TransportError as e:
@@ -139,7 +169,7 @@ class DukascopyProvider:
                         raise ProviderUnavailable(f"Dukascopy answered HTTP {r.status_code}")
                     err = f"HTTP {r.status_code}"
                 if attempt < self.retries:
-                    time.sleep(0.5 * 2**attempt)
+                    time.sleep(retry_delay(attempt, r))
             raise ProviderUnavailable(f"Dukascopy unreachable after {self.retries + 1} attempts ({err})")
         finally:
             if self._client is None:

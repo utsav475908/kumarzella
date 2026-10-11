@@ -8,5 +8,8 @@ def get_provider() -> MarketDataProvider | None:
     if s.marketdata_provider == "dukascopy":
         from app.modules.marketdata.providers.dukascopy import DukascopyProvider
 
-        return DukascopyProvider(s.dukascopy_base_url, s.marketdata_timeout_seconds, s.marketdata_retries)
+        return DukascopyProvider(
+            s.dukascopy_base_url, s.marketdata_timeout_seconds, s.marketdata_retries,
+            min_interval=s.marketdata_min_interval_seconds,
+        )  # fmt: skip
     return None

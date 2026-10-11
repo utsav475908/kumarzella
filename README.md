@@ -111,6 +111,8 @@ EL_DUKASCOPY_BASE_URL=file:///tmp/el-mirror EL_DATABASE_URL=postgresql+psycopg:/
 
 `python -m scripts.check_dukascopy` (in `backend/`) downloads one real day of EURUSD and USDJPY candles and checks the price scale, field order and bid/ask sides. It needs outbound access to `datafeed.dukascopy.com` and no database.
 
+It passed on 2024-01-16 EURUSD and USDJPY and on 2024-03-05 GBPUSD (2026-10-11). That run used the repo's adapter and decoder with a small stand-in for httpx, because the environment it ran in couldn't reach PyPI. It only passed with longer timeouts and more retries than the old defaults, which led to the throttling handling above.
+
 The first journey registers a user, then creates an account and imports `fixture_a.csv` through the wizard. It checks the dashboard against the hand-computed expected values, then drills into a losing day. Finally it journals a trade with a note, tags and a playbook.
 
 ## What is implemented
@@ -184,7 +186,7 @@ Built before Phase 4, at the project owner's request, with one provider and one 
 - **Market data:**
   - A provider-independent interface (`app/modules/marketdata/providers/base.py`).
   - The Dukascopy adapter decodes the datafeed's LZMA "bi5" files of 1-minute bid and ask candles for 28 currency pairs. It checks every record (low ≤ open/close ≤ high, ordered times), so a format change fails loudly instead of producing wrong prices.
-  - Retries with backoff. An HTTP 404 means no data for that day.
+  - Dukascopy throttles bursts with HTTP 429. Requests from one process are spaced 0.5 s apart, and a 429 waits for `Retry-After` (or backs off from 2 s up to 30 s). Other failures back off from 0.5 s. The defaults are a 60 s timeout and 6 retries (`EL_MARKETDATA_TIMEOUT_SECONDS`, `EL_MARKETDATA_RETRIES`, `EL_MARKETDATA_MIN_INTERVAL_SECONDS`). An HTTP 404 means no data for that day.
 - **Cache:**
   - Candles are stored per provider, symbol, side and minute (`market_candles`).
   - A coverage row per UTC day (`market_data_coverage`) records complete, error or queued.
@@ -222,6 +224,7 @@ Built before Phase 4, at the project owner's request, with one provider and one 
 | Ruff format and lint; `alembic check` | Natively | clean |
 | Frontend vitest (36, including the replay state machine, chart states, the adherence panel, chart notes, rules-form validation, the reports page, the order ticket, backtest stepping and results), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
 | Playwright journeys (5 tests, including forex trade chart, MAE/MFE, a review replay, versioned playbook rules with checklist adherence and reports, and a manual backtest with a bracket order, results and a verified re-run) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
+| Live Dukascopy check: real EURUSD, USDJPY and GBPUSD days decoded, ask ≥ bid on every minute | Cloud environment with datafeed.dukascopy.com allowed; httpx replaced by a urllib stand-in (no PyPI there) | pass, after the retry changes |
 | Compose stack: all images built; db, redis, migrate, api, worker and web healthy; fixture A imported through nginx on :8080 with dashboard net `260.45`, including a run forced through the Celery worker | Docker, with MinIO swapped for local storage (MinIO's image was not reachable from the build machine) | pass |
 
 The S3 code path (`S3Storage`) is unit-level only. It has not been exercised against a real MinIO or S3 here.
