@@ -1,0 +1,211 @@
+# EdgeLedger CI/CD on CircleCI. Runs on every pushed commit, on every branch.
+#
+#   backend   ruff, Alembic migrations + drift check, pytest against real Postgres 16 and Redis 7
+#   frontend  oxlint, TypeScript, vitest, production build
+#   e2e       Playwright journeys against the API + Vite dev server (synthetic candle mirror, not market data)
+#   docker    builds the api and web images, boots the whole Compose stack and smoke-tests it through nginx;
+#             on main it also pushes both images to GitHub Container Registry, once credentials exist
+#
+# Publishing needs two environment variables in the CircleCI project settings (or a context):
+#   GHCR_USER   GitHub user or org that owns the packages (e.g. utsav475908)
+#   GHCR_TOKEN  a GitHub personal access token with the write:packages scope
+# Without them the publish step says so and is skipped; the pipeline stays green.
+version: 2.1
+
+executors:
+  python-db:
+    docker:
+      - image: cimg/python:3.13-node
+      - image: postgres:16-alpine
+        environment:
+          POSTGRES_USER: tj
+          POSTGRES_PASSWORD: tj
+          POSTGRES_DB: tradejournal_test
+      - image: redis:7-alpine
+    environment:
+      EL_DATABASE_URL: postgresql+psycopg://tj:tj@localhost:5432/tradejournal_test
+      EL_REDIS_URL: redis://localhost:6379/0
+
+commands:
+  python-deps:
+    steps:
+      - restore_cache:
+          keys:
+            - py-v1-{{ checksum "backend/requirements.lock" }}
+      - run:
+          name: Install backend dependencies
+          working_directory: backend
+          command: |
+            python -m venv .venv
+            .venv/bin/pip install -q -r requirements.lock
+            echo 'export PATH="$CIRCLE_WORKING_DIRECTORY/backend/.venv/bin:$PATH"' >> "$BASH_ENV"
+      - save_cache:
+          key: py-v1-{{ checksum "backend/requirements.lock" }}
+          paths: [backend/.venv]
+  node-deps:
+    steps:
+      - restore_cache:
+          keys:
+            - npm-v1-{{ checksum "frontend/package-lock.json" }}
+      - run:
+          name: Install frontend dependencies
+          working_directory: frontend
+          command: npm ci --cache ~/.npm --prefer-offline
+      - save_cache:
+          key: npm-v1-{{ checksum "frontend/package-lock.json" }}
+          paths: [~/.npm]
+  wait-for-db:
+    steps:
+      - run:
+          name: Wait for Postgres and Redis
+          command: dockerize -wait tcp://localhost:5432 -wait tcp://localhost:6379 -timeout 60s
+
+jobs:
+  backend:
+    executor: python-db
+    steps:
+      - checkout
+      - python-deps
+      - run:
+          name: Lint (ruff)
+          working_directory: backend
+          command: |
+            ruff format --check app tests alembic scripts
+            ruff check app tests scripts
+      - wait-for-db
+      - run:
+          name: Migrations apply cleanly and match the models
+          working_directory: backend
+          command: alembic upgrade head && alembic check
+      - run:
+          name: Tests (pytest)
+          working_directory: backend
+          command: |
+            mkdir -p ~/results
+            pytest -q --junitxml=$HOME/results/backend.xml
+      - store_test_results:
+          path: ~/results
+
+  frontend:
+    docker:
+      - image: cimg/node:22.14
+    steps:
+      - checkout
+      - node-deps
+      - run: { name: Lint, working_directory: frontend, command: npm run lint }
+      - run: { name: Type check, working_directory: frontend, command: npm run typecheck }
+      - run: { name: Unit tests (vitest), working_directory: frontend, command: npm test }
+      - run: { name: Production build, working_directory: frontend, command: npm run build }
+      - store_artifacts:
+          path: frontend/dist
+          destination: frontend-dist
+
+  e2e:
+    executor: python-db
+    environment:
+      EL_DATABASE_URL: postgresql+psycopg://tj:tj@localhost:5432/tradejournal_test
+      EL_DUKASCOPY_BASE_URL: file:///tmp/el-mirror
+      EL_JOBS_EAGER: "true"
+      EL_STORAGE_LOCAL_PATH: /tmp/el-storage
+      # Pin IPv4 end to end so Vite, its /api proxy and Playwright all reach the same sockets.
+      VITE_API_PROXY: http://127.0.0.1:8000
+      E2E_BASE_URL: http://127.0.0.1:5173
+    steps:
+      - checkout
+      - python-deps
+      - node-deps
+      - run:
+          name: Install Playwright Chromium
+          working_directory: frontend
+          command: npx playwright install --with-deps chromium
+      - wait-for-db
+      - run:
+          name: Migrate and write the synthetic test candles
+          working_directory: backend
+          command: |
+            alembic upgrade head
+            python -m tests.make_mirror /tmp/el-mirror
+      - run:
+          name: API on :8000
+          working_directory: backend
+          background: true
+          command: uvicorn app.main:app --host 127.0.0.1 --port 8000 2>&1 | tee /tmp/api.log
+      - run:
+          name: Vite on :5173
+          working_directory: frontend
+          background: true
+          command: npm run dev -- --host 127.0.0.1
+      - run:
+          name: Wait for the stack
+          command: dockerize -wait http://127.0.0.1:8000/readyz -wait http://127.0.0.1:5173 -timeout 120s
+      - run:
+          name: Playwright journeys
+          working_directory: frontend
+          command: npx playwright test
+      - store_artifacts:
+          path: frontend/test-results
+          destination: playwright
+      - store_artifacts:
+          path: /tmp/api.log
+          destination: api.log
+
+  docker:
+    machine:
+      image: ubuntu-2404:current
+    steps:
+      - checkout
+      - run:
+          name: Build images
+          command: |
+            docker compose build
+            docker tag edgeledger-api "edgeledger-api:${CIRCLE_SHA1}"
+            docker tag edgeledger-web "edgeledger-web:${CIRCLE_SHA1}"
+      - run:
+          name: Boot the Compose stack and smoke-test it
+          command: |
+            docker compose up -d
+            for i in $(seq 1 60); do
+              curl -fsS http://localhost:8080/healthz && break
+              [ "$i" = 60 ] && { echo "stack did not become healthy"; exit 1; }
+              sleep 3
+            done
+            page=$(curl -fsS http://localhost:8080/)
+            grep -q 'id="root"' <<< "$page"
+            echo "stack healthy"
+      - run:
+          name: Compose logs on failure
+          when: on_fail
+          command: docker compose logs --no-color
+      - run:
+          name: Stop the stack
+          when: always
+          command: docker compose down -v
+      - when:
+          condition:
+            equal: [main, << pipeline.git.branch >>]
+          steps:
+            - run:
+                name: Publish images to ghcr.io (main only)
+                command: |
+                  if [ -z "${GHCR_USER:-}" ] || [ -z "${GHCR_TOKEN:-}" ]; then
+                    echo "GHCR_USER / GHCR_TOKEN are not set in CircleCI, so images are not published. Skipping."
+                    exit 0
+                  fi
+                  owner=$(echo "$GHCR_USER" | tr '[:upper:]' '[:lower:]')
+                  echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+                  for svc in api web; do
+                    for tag in "$CIRCLE_SHA1" latest; do
+                      docker tag "edgeledger-$svc" "ghcr.io/$owner/edgeledger-$svc:$tag"
+                      docker push "ghcr.io/$owner/edgeledger-$svc:$tag"
+                    done
+                  done
+
+workflows:
+  ci-cd:
+    jobs:
+      - backend
+      - frontend
+      - e2e:
+          requires: [backend, frontend]
+      - docker:
+          requires: [backend, frontend]
