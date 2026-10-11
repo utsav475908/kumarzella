@@ -17,6 +17,7 @@ from app.modules.imports.models import ImportJob, RawImportRecord
 from app.modules.instruments import service as instruments
 from app.modules.instruments.models import Instrument
 from app.modules.journal.models import DayNote, TradeNote, TradeTag
+from app.modules.playbooks import service as playbook_service
 from app.modules.trades import service
 from app.modules.trades.filters import TradeFilters, apply_filters, base_query, trade_filters
 from app.modules.trades.models import Trade, TradeExecution
@@ -160,6 +161,8 @@ def patch_trade(
     tag_ids = changes.pop("tag_ids", None)
     if "playbook_id" in changes:
         service.check_playbook(db, user.id, changes["playbook_id"])
+        playbook_service.assign_playbook(db, t, changes.pop("playbook_id"))
+        changes["playbook_id"] = t.playbook_id  # kept only for the audit field list
     for k, v in changes.items():
         setattr(t, k, v)
     if tag_ids is not None:
@@ -214,7 +217,7 @@ def create_manual_trade(data: ManualTradeIn, user: User = Depends(get_current_us
             if data.planned_target_price is not None:
                 t.planned_target_price = data.planned_target_price
             if data.playbook_id:
-                t.playbook_id = data.playbook_id
+                playbook_service.assign_playbook(db, t, data.playbook_id)
             recompute_risk(t, inst)
             if data.note:
                 db.add(TradeNote(trade_id=t.id, user_id=user.id, body=data.note))

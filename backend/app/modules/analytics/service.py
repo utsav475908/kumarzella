@@ -12,10 +12,12 @@ from sqlalchemy.orm import Session
 
 from app.modules.accounts.models import Account
 from app.modules.analytics import metrics as mx
+from app.modules.instruments.models import Instrument
 from app.modules.instruments.rules import market_local_time
 from app.modules.journal.models import Tag, TradeTag
 from app.modules.playbooks.models import Playbook
 from app.modules.trades.filters import TradeFilters, apply_filters, base_query
+from app.modules.trades.models import Trade
 
 EXCURSION_NOTE = (
     "MAE/MFE come from historical 1-minute bid/ask candles (forex via Dukascopy). They are computed when a trade's "
@@ -24,6 +26,14 @@ EXCURSION_NOTE = (
 
 
 def load(db: Session, user_id: UUID, f: TradeFilters, currency: str | None) -> tuple[list[mx.TradeRow], dict]:
+    trades, meta, _ = load_with_rows(db, user_id, f, currency)
+    return trades, meta
+
+
+def load_with_rows(
+    db: Session, user_id: UUID, f: TradeFilters, currency: str | None
+) -> tuple[list[mx.TradeRow], dict, list[tuple[Trade, Instrument]]]:
+    """Closed trades in one currency as metric rows, plus the ORM rows they came from (same order)."""
     closed_f = replace(f, status="closed")
     rows = db.execute(apply_filters(base_query(), user_id, closed_f)).all()
     open_count = len(db.execute(apply_filters(base_query(), user_id, replace(f, status="open"))).all())
@@ -84,7 +94,7 @@ def load(db: Session, user_id: UUID, f: TradeFilters, currency: str | None) -> t
         "accounts": accounts,
         "includes_demo_data": any(a.is_demo for a in accounts if not f.account_ids or a.id in f.account_ids),
     }
-    return out, meta
+    return out, meta, [(t, i) for t, i in rows]
 
 
 def dashboard(db: Session, user_id: UUID, f: TradeFilters, currency: str | None) -> dict:

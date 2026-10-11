@@ -161,14 +161,24 @@ The first journey registers a user, then creates an account and imports `fixture
 - Light and dark themes with colorblind-safe gain and loss colors.
 - A synthetic demo dataset that is clearly labelled.
 
-### Started early from Phase 4
+### Phase 4: advanced reports, strategy playbooks and trade annotations
 
-- Basic playbooks (name and description) that trades can be assigned to, with a per-playbook performance report. Trades with no playbook appear as "No playbook".
-- Versioned rules, checklists and rule adherence are not built yet (see the next milestone).
+- **Versioned playbooks:**
+  - Each playbook holds its setup description, instruments, timeframe, permitted sessions, entry window, written entry, exit, stop, target, sizing and invalidation rules, valid and invalid examples, risk limits, setup screenshots, and pre-trade and post-trade checklists.
+  - Rules are never edited in place. Saving creates a new immutable version (`playbook_versions`), and the history is browsable.
+  - A trade is pinned to the version that was current when the playbook was assigned (`trades.playbook_version_id`), so new rules never re-judge old trades. Removing and re-assigning the playbook pins the current version.
+- **Rule adherence** (`app/modules/analytics/adherence.py`, formulas in [docs/metrics.md](docs/metrics.md#rule-adherence)):
+  - Verified rules are checked from trade data and return pass, fail or unknown: instrument, session, entry window, stop recorded, risk within limit, planned reward:risk, trades per day, and loss within planned risk.
+  - Checklist items are the trader's own yes/no answers, kept separate from verified rules on screen and in the API.
+  - Each trade is followed, broken, incomplete or has no rules. Profit is never part of it.
+- **Advanced reports** (`GET /api/v1/analytics/reports`, Reports page): strategy comparison (net, win rate, profit factor, expectancy, average R, average MAE/MFE and followed rate per playbook), rule adherence (outcome groups, per-rule and per-checklist-item results with P&L when failed, and the trades that broke their playbook), P&L by tag, by month and by holding time, and trading costs by symbol. All global filters apply, and rows drill into the journal.
+- **Playbook page:** report (dashboard metrics plus adherence for that playbook), rules editor with version history, and screenshots.
+- **Trade page:** a playbook-rules panel with the verified checks and checklist toggles, and chart annotations. Click a candle to pin a note, mistake or good decision to it; notes show as chart markers.
+- Checklist answers and annotations follow a trade when re-import or an accounting change rebuilds it, and are included in the data export.
 
 ### Phase 5: historical market data and trade replay
 
-Built ahead of the rest of Phase 4, at the project owner's request, with one provider and one market (Dukascopy, forex).
+Built before Phase 4, at the project owner's request, with one provider and one market (Dukascopy, forex).
 
 - **Market data:**
   - A provider-independent interface (`app/modules/marketdata/providers/base.py`).
@@ -198,10 +208,10 @@ Built ahead of the rest of Phase 4, at the project owner's request, with one pro
 
 | Check | How it was run | Result |
 |---|---|---|
-| Backend pytest: 107 tests covering auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE and replay | Natively, against PostgreSQL 16 and Redis 7 | pass |
+| Backend pytest: 125 tests covering auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE, replay, playbook versions, rule adherence, checklists, annotations and reports | Natively, against PostgreSQL 16 and Redis 7 | pass |
 | Ruff format and lint; `alembic check` | Natively | clean |
-| Frontend vitest (27, including the replay state machine and chart states), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
-| Playwright journeys (3 tests, including forex trade chart, MAE/MFE and a review replay) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
+| Frontend vitest (32, including the replay state machine, chart states, the adherence panel, chart notes, rules-form validation and the reports page), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
+| Playwright journeys (4 tests, including forex trade chart, MAE/MFE, a review replay, and versioned playbook rules with checklist adherence and reports) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
 | Compose stack: all images built; db, redis, migrate, api, worker and web healthy; fixture A imported through nginx on :8080 with dashboard net `260.45`, including a run forced through the Celery worker | Docker, with MinIO swapped for local storage (MinIO's image was not reachable from the build machine) | pass |
 
 The S3 code path (`S3Storage`) is unit-level only. It has not been exercised against a real MinIO or S3 here.
@@ -219,16 +229,16 @@ The S3 code path (`S3Storage`) is unit-level only. It has not been exercised aga
 - There are no broker API adapters yet; import is CSV only.
 - Billing, the AI coach, and both kinds of backtesting are placeholder modules with no endpoints.
 - Email verification and password reset are not implemented, because no mail service is configured.
+- Rule adherence checks what trade data can show. Rules that need chart reading (for example "entered on a break of the range") are covered only by the trader's checklist answers.
+- The trades-per-day rule counts trades of the same playbook in the same account on the same session date.
 
-## Next milestone: rest of Phase 4 (advanced reports, strategy playbooks, trade annotations)
+## Next milestone: Phase 6 (manual backtesting and deterministic order simulation)
 
-Phase numbers follow the project specification. Phase 5 (market data and replay) was built first at the project owner's request.
+Phase numbers follow the project specification. Phases 1 to 5 are done.
 
-1. Versioned playbooks: setup, instrument and timeframe, permitted sessions, entry, exit, stop and target rules, sizing and risk limits, invalidation conditions, examples, screenshots, and pre-trade and post-trade checklists.
-2. Rule adherence with explicit criteria. Facts the system can verify are kept apart from judgments the trader confirms, and adherence is reported separately from profitability.
-3. Advanced reports: rule adherence, playbook comparison, excursion analysis (MAE/MFE by playbook), and trading-cost breakdowns.
-4. Trade annotations on the trade chart and mistake categories.
-
-After that comes Phase 6: manual backtesting on top of the blind replay engine, with a deterministic order simulator.
+1. Backtesting sessions: symbol, timeframe, date range and starting balance, replayed with the blind replay engine so no future bar is ever sent.
+2. A deterministic order simulator: market, limit and stop orders, position size, stop-loss and take-profit, commissions and configurable slippage. Ambiguous bars where both stop and target are touched are resolved conservatively or marked ambiguous.
+3. Open and closed simulated positions, notes and screenshots, and a results report, all stored apart from real trades with the exact configuration for reproducibility.
+4. Determinism tests: the same session and orders always produce the same fills and results.
 
 See also [docs/metrics.md](docs/metrics.md) and [docs/security-and-compliance.md](docs/security-and-compliance.md).

@@ -66,6 +66,43 @@ Every financial figure in EdgeLedger is computed in the backend, by `app/modules
 | MAE and MFE in R | MAE ÷ initial risk and MFE ÷ initial risk, for trades with a known positive risk. |
 | MFE kept | Σ net P&L ÷ Σ MFE over trades that have excursion data. |
 
+## Rule adherence
+
+Each trade with a playbook is judged against the playbook version it was pinned to when the playbook was assigned. Two kinds of evidence are kept apart:
+
+| Verified rule (checked from trade data) | Pass when | Unknown when |
+|---|---|---|
+| Instrument allowed | The symbol is in the version's instrument list (no list = no check). | |
+| Session allowed | The entry session (regular or extended hours) is permitted. | |
+| Entry time window | The entry hour in market time is in [start, end). A window may wrap past midnight. | |
+| Initial stop recorded | A planned stop price or planned risk amount is set. | |
+| Risk within limit | Initial risk ≤ the version's max risk per trade. | Initial risk is not known. |
+| Planned reward:risk | (target − entry) ÷ (entry − stop), sign-adjusted for shorts and rounded to 0.01, is at least the minimum. A stop or target on the wrong side of the entry fails. | Stop or target missing. |
+| Trades per day | The trade's position among the same playbook's trades in the same account on the same session date is within the limit. | |
+| Loss within planned risk | Checked when a stop or risk limit is set: R ≥ −1.1 (a little slippage past −1R is tolerated). | Trade still open, or R unknown. |
+
+Checklist items are the trader's own yes/no answers. Answers given against an older version's checklist don't count for a different version.
+
+| Outcome | Rule |
+|---|---|
+| Broken | Any verified rule failed, or any checklist item was answered "no". |
+| Followed | Every verified rule passed and every checklist item was answered "yes". |
+| Incomplete | Nothing failed, but a rule is unknown or an item is unanswered. |
+| No rules | The version has no checkable limits and no checklist. |
+
+Followed rate = followed ÷ (followed + broken). Incomplete trades are left out. Profitability is never an input.
+
+## Advanced reports
+
+| Report | Definition |
+|---|---|
+| Strategy comparison | The aggregates above per playbook ("No playbook" included), plus average MAE/MFE over trades with excursion data and the followed rate. |
+| Rule results | Per verified rule: passed, failed and unknown counts, and net P&L and average R of the trades that passed and that failed it. |
+| Checklist results | Per item: yes, no and unanswered counts, with net P&L for yes and for no. Items keep their id across versions, so a reworded item stays one row. |
+| By holding time | Buckets: under 1 min, 1-5 min, 5-15 min, 15-60 min, 1-4 h, 4-24 h, 1-5 days, over 5 days. |
+| By month | Grouped by the session date's month. |
+| Costs by symbol | Fees, fees as % of gross profit, net and gross P&L, and trades turned negative by costs, per symbol. |
+
 ## Regression fixture
 
 `backend/tests/fixtures/fixture_a.csv` is an executions file, and its expected results were computed by hand in `fixture_a_expected.json`:

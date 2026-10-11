@@ -7,7 +7,8 @@ import { LoginPage, RegisterPage } from "./pages/Auth";
 import { CalendarPage } from "./pages/CalendarPage";
 import { DashboardPage } from "./pages/Dashboard";
 import { ImportWizard } from "./pages/ImportWizard";
-import { PlaybookReport, PlaybooksPage } from "./pages/Playbooks";
+import { PlaybookPage, PlaybooksPage } from "./pages/Playbooks";
+import { ReportsPage } from "./pages/Reports";
 import { ReplayListPage, ReplayPlayerPage } from "./pages/Replay";
 import { ImportsPage, SettingsPage } from "./pages/Settings";
 import { TradeDetailPage } from "./pages/TradeDetail";
@@ -32,12 +33,13 @@ export default function App() {
         <Route path="trades" element={<TradesPage />} />
         <Route path="trades/:id" element={<TradeDetailPage />} />
         <Route path="calendar" element={<CalendarPage />} />
+        <Route path="reports" element={<ReportsPage />} />
         <Route path="import" element={<ImportWizard />} />
         <Route path="imports" element={<ImportsPage />} />
         <Route path="replay" element={<ReplayListPage />} />
         <Route path="replay/:id" element={<ReplayPlayerPage />} />
         <Route path="playbooks" element={<PlaybooksPage />} />
-        <Route path="playbooks/:id" element={<PlaybookReport />} />
+        <Route path="playbooks/:id" element={<PlaybookPage />} />
         <Route path="accounts" element={<AccountsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

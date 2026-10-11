@@ -12,11 +12,12 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base, IdMixin, TimestampMixin
+from app.core.db import Base, IdMixin, TimestampMixin, utcnow
 from app.core.types import Money, Price, Qty
 
 
@@ -83,6 +84,8 @@ class Trade(IdMixin, TimestampMixin, Base):
     excursion_computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     playbook_id: Mapped[UUID | None] = mapped_column(ForeignKey("playbooks.id", ondelete="SET NULL"), index=True)
+    # The playbook rules this trade is judged against (the version current when the playbook was assigned).
+    playbook_version_id: Mapped[UUID | None] = mapped_column(ForeignKey("playbook_versions.id", ondelete="SET NULL"))
     followed_plan: Mapped[bool | None] = mapped_column(Boolean)
     rating: Mapped[int | None] = mapped_column(Integer)
 
@@ -123,3 +126,21 @@ class Position(IdMixin, Base):
     avg_cost: Mapped[Decimal | None] = mapped_column(Price)
     open_trade_id: Mapped[UUID | None] = mapped_column(ForeignKey("trades.id", ondelete="SET NULL"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class TradeAnnotation(IdMixin, Base):
+    """A note pinned to a bar on the trade chart (what the trader saw, a mistake, a good decision)."""
+
+    __tablename__ = "trade_annotations"
+    __table_args__ = (
+        ForeignKeyConstraint(["trade_id", "user_id"], ["trades.id", "trades.user_id"], ondelete="CASCADE"),
+        CheckConstraint("kind in ('note','mistake','good')", name="kind"),
+    )
+
+    trade_id: Mapped[UUID] = mapped_column(index=True, nullable=False)
+    user_id: Mapped[UUID] = mapped_column(nullable=False)
+    bar_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    price: Mapped[Decimal | None] = mapped_column(Price)
+    kind: Mapped[str] = mapped_column(String(8), default="note", nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

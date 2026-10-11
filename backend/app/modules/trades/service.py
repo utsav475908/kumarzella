@@ -12,7 +12,7 @@ from app.core.errors import NotFound, ValidationFailed
 from app.modules.accounts.models import Account
 from app.modules.instruments.models import Instrument
 from app.modules.journal.models import Tag, TradeTag
-from app.modules.playbooks.models import Playbook
+from app.modules.playbooks.models import Playbook, PlaybookVersion
 from app.modules.trades.models import Trade
 from app.modules.trades.schemas import TagRef, TradeOut
 
@@ -47,6 +47,9 @@ def to_out(db: Session, rows: list[tuple[Trade, Instrument]]) -> list[TradeOut]:
     accts = {a.id: a for a in db.scalars(select(Account).where(Account.id.in_({t.account_id for t, _ in rows})))}
     pb_ids = {t.playbook_id for t, _ in rows if t.playbook_id}
     pbs = {p.id: p.name for p in db.scalars(select(Playbook).where(Playbook.id.in_(pb_ids)))} if pb_ids else {}
+    v_ids = {t.playbook_version_id for t, _ in rows if t.playbook_version_id}
+    versions = dict(db.execute(select(PlaybookVersion.id, PlaybookVersion.version)
+                               .where(PlaybookVersion.id.in_(v_ids))).tuples().all()) if v_ids else {}  # fmt: skip
     tags: dict[UUID, list[TagRef]] = defaultdict(list)
     for tt, tag in db.execute(
         select(TradeTag, Tag).join(Tag, Tag.id == TradeTag.tag_id).where(TradeTag.trade_id.in_(ids)).order_by(Tag.name)
@@ -65,6 +68,7 @@ def to_out(db: Session, rows: list[tuple[Trade, Instrument]]) -> list[TradeOut]:
                     "asset_class": inst.asset_class,
                     "multiplier": inst.multiplier,
                     "playbook_name": pbs.get(t.playbook_id) if t.playbook_id else None,
+                    "playbook_version": versions.get(t.playbook_version_id),
                     "tags": tags.get(t.id, []),
                 }
             )

@@ -20,11 +20,11 @@ from app.modules.executions.models import Execution
 from app.modules.instruments.models import Instrument
 from app.modules.instruments.rules import entry_session, session_date
 from app.modules.journal.models import TradeNote, TradeTag
+from app.modules.playbooks.models import TradeChecklistAnswer
 from app.modules.positions.engine import Fill, ReconstructedTrade, reconstruct
-from app.modules.trades.models import Position, Trade, TradeExecution
+from app.modules.trades.models import Position, Trade, TradeAnnotation, TradeExecution
 
-JOURNAL_FIELDS = ("planned_stop_price", "planned_target_price", "planned_risk_amount", "playbook_id",
-                  "followed_plan", "rating")  # fmt: skip
+JOURNAL_FIELDS = ("planned_stop_price", "planned_target_price", "planned_risk_amount", "followed_plan", "rating")
 
 
 @dataclass
@@ -176,9 +176,19 @@ def _rehome_journal(db: Session, old: Trade, new: Trade) -> None:
     for tt in db.scalars(select(TradeTag).where(TradeTag.trade_id == old.id)):
         if tt.tag_id not in existing_tags:
             db.add(TradeTag(trade_id=new.id, tag_id=tt.tag_id, user_id=tt.user_id))
+    db.execute(update(TradeAnnotation).where(TradeAnnotation.trade_id == old.id).values(trade_id=new.id))
     for f in JOURNAL_FIELDS:
         if getattr(new, f) is None and getattr(old, f) is not None:
             setattr(new, f, getattr(old, f))
+    if new.playbook_id is None and old.playbook_id is not None:
+        # The playbook and its pinned version move together, and so do the checklist answers given against it.
+        new.playbook_id, new.playbook_version_id = old.playbook_id, old.playbook_version_id
+        answered = set(db.scalars(select(TradeChecklistAnswer.item_id).where(TradeChecklistAnswer.trade_id == new.id)))
+        for a in db.scalars(select(TradeChecklistAnswer).where(TradeChecklistAnswer.trade_id == old.id)):
+            if a.item_id not in answered:
+                db.add(TradeChecklistAnswer(trade_id=new.id, item_id=a.item_id, user_id=a.user_id,
+                                            playbook_version_id=a.playbook_version_id, phase=a.phase,
+                                            answer=a.answer, answered_at=a.answered_at))  # fmt: skip
 
 
 def rebuild_account(db: Session, account: Account, instrument_ids: set[UUID] | None = None) -> RebuildStats:

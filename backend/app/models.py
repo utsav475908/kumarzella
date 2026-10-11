@@ -9,6 +9,6 @@ from app.modules.imports.models import ImportJob, RawImportRecord  # noqa: F401
 from app.modules.instruments.models import Instrument  # noqa: F401
 from app.modules.journal.models import DayNote, Tag, TradeNote, TradeTag  # noqa: F401
 from app.modules.marketdata.models import Candle, CandleCoverage  # noqa: F401
-from app.modules.playbooks.models import Playbook  # noqa: F401
+from app.modules.playbooks.models import Playbook, PlaybookVersion, TradeChecklistAnswer  # noqa: F401
 from app.modules.replay.models import ReplayAnnotation, ReplaySession  # noqa: F401
-from app.modules.trades.models import Position, Trade, TradeExecution  # noqa: F401
+from app.modules.trades.models import Position, Trade, TradeAnnotation, TradeExecution  # noqa: F401

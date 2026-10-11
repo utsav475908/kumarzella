@@ -29,4 +29,10 @@ DEFINITIONS = {
     "mfe": "Maximum favourable excursion: highest open P&L while the trade was open, floored at 0, same rules as MAE.",
     "mfe_capture": "sum of net P&L / sum of MFE over trades with excursion data: how much of the best open profit "
     "was kept.",
+    "adherence_outcome": "Per trade, against its pinned playbook version: broken if any verified rule failed or any "
+    "checklist item was answered no; followed if every rule passed and every item was answered yes; otherwise "
+    "incomplete. Profit is never an input.",
+    "followed_rate": "followed / (followed + broken). Incomplete trades are excluded.",
+    "stop_respected": "Loss within planned risk: passes when R >= -1.1 on a closed trade with known initial risk.",
+    "reward_risk": "Planned reward:risk = (target - entry) / (entry - stop), sign-adjusted for shorts.",
 }

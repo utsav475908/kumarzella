@@ -51,6 +51,8 @@ class TradeOut(ApiModel):
     mfe: Decimal | None = None
     playbook_id: UUID | None
     playbook_name: str | None = None
+    playbook_version_id: UUID | None = None
+    playbook_version: int | None = None
     followed_plan: bool | None
     rating: int | None
     tags: list[TagRef] = []

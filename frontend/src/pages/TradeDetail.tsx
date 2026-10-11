@@ -5,6 +5,7 @@ import { z } from "zod";
 import { api } from "../api/client";
 import { useInvalidateTradeData, usePlaybooks, useTags, useTrade } from "../api/hooks";
 import type { TradeDetail as TD } from "../api/schemas";
+import { TradeAdherencePanel } from "../components/Adherence";
 import { TradeChartPanel } from "../components/TradeChartPanel";
 import { Badge, Button, ErrorState, Field, Input, Loading, Panel, Select, errorMessage } from "../components/ui";
 import { fmtDateTime, fmtDuration, fmtMoney, fmtNum, fmtR, pnlClass, trimDecimal } from "../lib/format";
@@ -67,6 +68,8 @@ export function TradeDetailPage() {
         </Panel>
         <Panel title="Journal"><JournalForm d={d} /></Panel>
       </div>
+
+      <Panel title="Playbook rules"><TradeAdherencePanel d={d} /></Panel>
 
       <Panel title="Execution history and source data"><Executions d={d} /></Panel>
 
@@ -202,6 +205,7 @@ export function JournalForm({ d }: { d: TD }) {
           <option value="">None</option>
           {playbooks.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
+        {d.playbook_version != null && pb === d.playbook_id && <span className="text-xs text-muted">Judged by rules v{d.playbook_version}</span>}
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Followed plan?">

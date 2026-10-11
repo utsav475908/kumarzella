@@ -77,6 +77,8 @@ export const trade = z.object({
   mfe: moneyN.optional(),
   playbook_id: z.string().nullable(),
   playbook_name: z.string().nullable(),
+  playbook_version_id: z.string().nullable().optional(),
+  playbook_version: z.number().nullable().optional(),
   followed_plan: z.boolean().nullable(),
   rating: z.number().nullable(),
   tags: z.array(tagRef),
@@ -416,3 +418,142 @@ export const annotation = z.object({
   created_at: z.string(),
 });
 export type Annotation = z.infer<typeof annotation>;
+
+// ---------------------------------------------------------------- playbooks, adherence, reports (Phase 4)
+
+export const checklistItem = z.object({ id: z.string(), text: z.string() });
+export type ChecklistItem = z.infer<typeof checklistItem>;
+
+export const playbookRules = z.object({
+  id: z.string(),
+  version: z.number(),
+  change_note: z.string().nullable(),
+  created_at: z.string(),
+  instruments: z.array(z.string()),
+  timeframe: z.string().nullable(),
+  permitted_sessions: z.array(z.string()),
+  entry_hour_start: z.number().nullable(),
+  entry_hour_end: z.number().nullable(),
+  entry_rules: z.string().nullable(),
+  exit_rules: z.string().nullable(),
+  stop_rules: z.string().nullable(),
+  target_rules: z.string().nullable(),
+  sizing_rules: z.string().nullable(),
+  invalidation: z.string().nullable(),
+  valid_examples: z.string().nullable(),
+  invalid_examples: z.string().nullable(),
+  require_stop: z.boolean(),
+  max_risk_per_trade: moneyN,
+  min_reward_risk: moneyN,
+  max_trades_per_day: z.number().nullable(),
+  pre_trade_checklist: z.array(checklistItem),
+  post_trade_checklist: z.array(checklistItem),
+});
+export type PlaybookRules = z.infer<typeof playbookRules>;
+
+export const playbookDetail = playbook.extend({
+  created_at: z.string(),
+  rules: playbookRules,
+  versions: z.array(z.object({ id: z.string(), version: z.number(), change_note: z.string().nullable(), created_at: z.string() })),
+  attachments: z.array(attachment),
+});
+export type PlaybookDetail = z.infer<typeof playbookDetail>;
+
+export const outcome = z.enum(["followed", "broken", "incomplete", "no_rules"]);
+export type Outcome = z.infer<typeof outcome>;
+
+export const assessment = z.object({
+  playbook_version_id: z.string(),
+  version: z.number(),
+  outcome,
+  verified: z.array(z.object({ key: z.string(), label: z.string(), status: z.enum(["pass", "fail", "unknown"]), detail: z.string() })),
+  checklist: z.array(z.object({ id: z.string(), phase: z.enum(["pre", "post"]), text: z.string(), answer: z.boolean().nullable() })),
+  counts: z.record(z.string(), z.number()),
+});
+export type Assessment = z.infer<typeof assessment>;
+
+export const tradeAdherence = z.object({
+  trade_id: z.string(),
+  playbook_id: z.string().nullable(),
+  playbook_name: z.string().nullable(),
+  current_version: z.number().optional(),
+  assessment: assessment.nullable(),
+});
+export type TradeAdherence = z.infer<typeof tradeAdherence>;
+
+export const tradeAnnotation = z.object({
+  id: z.string(),
+  trade_id: z.string(),
+  bar_time: z.string(),
+  price: moneyN,
+  kind: z.enum(["note", "mistake", "good"]),
+  text: z.string(),
+  created_at: z.string(),
+});
+export type TradeAnnotation = z.infer<typeof tradeAnnotation>;
+
+const stats = z.object({
+  closed_trades: z.number(),
+  net_pnl: moneyN,
+  wins: z.number(),
+  losses: z.number(),
+  win_rate: moneyN,
+  profit_factor: moneyN,
+  expectancy: moneyN,
+  avg_r: moneyN,
+});
+export type StatRow = z.infer<typeof stats>;
+
+const outcomeCounts = z.object({ followed: z.number(), broken: z.number(), incomplete: z.number(), no_rules: z.number() });
+
+export const adherenceBlock = z.object({
+  assessed_trades: z.number(),
+  unassessed_trades: z.number(),
+  counts: outcomeCounts,
+  followed_rate: moneyN,
+  outcomes: z.array(stats.extend({ outcome })),
+  rules: z.array(z.object({
+    key: z.string(), label: z.string(), passed: z.number(), failed: z.number(), unknown: z.number(), fail_rate: moneyN,
+    net_pnl_when_passed: moneyN, net_pnl_when_failed: moneyN, avg_r_when_passed: moneyN, avg_r_when_failed: moneyN,
+  })),
+  checklist: z.array(z.object({
+    id: z.string(), text: z.string(), phase: z.string(), yes: z.number(), no: z.number(), unanswered: z.number(),
+    net_pnl_when_yes: moneyN, net_pnl_when_no: moneyN,
+  })),
+  broken_trades: z.array(z.object({
+    trade_id: z.string(), symbol: z.string(), closed_at: z.string(), net_pnl: moneyN, r_multiple: moneyN,
+    playbook_name: z.string().nullable(), version: z.number(), failed_rules: z.array(z.string()), checklist_no: z.array(z.string()),
+  })),
+  note: z.string(),
+});
+export type AdherenceBlock = z.infer<typeof adherenceBlock>;
+
+const reportMeta = {
+  currency: z.string(),
+  currencies_available: z.array(z.string()),
+  excluded_other_currency_trades: z.number(),
+  open_trades: z.number(),
+  includes_demo_data: z.boolean(),
+  warnings: z.array(z.string()),
+};
+
+export const adherenceReport = adherenceBlock.extend(reportMeta);
+export type AdherenceReport = z.infer<typeof adherenceReport>;
+
+export const reports = z.object({
+  ...reportMeta,
+  summary: stats,
+  playbooks: z.array(stats.extend({
+    key: z.string().nullable(), label: z.string(), avg_mae: moneyN, avg_mfe: moneyN, trades_with_excursions: z.number(),
+    adherence: outcomeCounts.nullable(), followed_rate: moneyN,
+  })),
+  adherence: adherenceBlock,
+  by_tag: z.array(stats.extend({ tag: z.string(), category: z.string() })),
+  by_holding_time: z.array(stats.extend({ key: z.string(), label: z.string() })),
+  by_month: z.array(stats.extend({ key: z.string(), label: z.string() })),
+  costs_by_symbol: z.array(z.object({
+    symbol: z.string(), trades: z.number(), total_fees: moneyN, avg_fees_per_trade: moneyN, fees_pct_of_gross_profit: moneyN,
+    trades_turned_negative_by_costs: z.number(), net_without_costs: moneyN, net_pnl: moneyN,
+  })),
+});
+export type Reports = z.infer<typeof reports>;

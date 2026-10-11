@@ -19,6 +19,11 @@ export const qk = {
   replaySessions: ["replay-sessions"] as const,
   replay: (id: string) => ["replay", id] as const,
   annotations: (id: string) => ["replay-annotations", id] as const,
+  playbook: (id: string) => ["playbook", id] as const,
+  adherence: (id: string) => ["trade-adherence", id] as const,
+  tradeAnnotations: (id: string) => ["trade-annotations", id] as const,
+  reports: (q: Query) => ["reports", q] as const,
+  playbookAdherence: (id: string, q: Query) => ["playbook-adherence", id, q] as const,
 };
 
 export function useMe() {
@@ -70,7 +75,7 @@ export function useInvalidateTradeData() {
   const qc = useQueryClient();
   return () =>
     Promise.all(
-      ["trades", "trade", "dashboard", "calendar", "tags", "imports"].map((k) => qc.invalidateQueries({ queryKey: [k] })),
+      ["trades", "trade", "dashboard", "calendar", "tags", "imports", "reports", "trade-adherence", "playbook-adherence"].map((k) => qc.invalidateQueries({ queryKey: [k] })),
     );
 }
 
@@ -151,3 +156,60 @@ export const advanceReplay = (id: string, steps: number) =>
 
 export const patchReplay = (id: string, body: { speed?: number; cursor_at?: string }) =>
   api(`/replay/sessions/${id}`, { method: "PATCH", body, schema: s.replaySession });
+
+// ---------------------------------------------------------------- playbooks, adherence, reports
+
+export const usePlaybook = (id: string) =>
+  useQuery({ queryKey: qk.playbook(id), queryFn: () => api(`/playbooks/${id}`, { schema: s.playbookDetail }), enabled: id !== "" });
+
+export const usePlaybookVersion = (id: string, version: number | null) =>
+  useQuery({
+    queryKey: [...qk.playbook(id), "version", version],
+    queryFn: () => api(`/playbooks/${id}/versions/${version}`, { schema: s.playbookRules }),
+    enabled: version !== null,
+  });
+
+export const useTradeAdherence = (id: string) =>
+  useQuery({ queryKey: qk.adherence(id), queryFn: () => api(`/trades/${id}/adherence`, { schema: s.tradeAdherence }) });
+
+export function useSaveChecklist(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (answers: { item_id: string; answer: boolean | null }[]) =>
+      api(`/trades/${id}/checklist`, { method: "PUT", body: { answers }, schema: s.tradeAdherence }),
+    onSuccess: (data) => {
+      qc.setQueryData(qk.adherence(id), data);
+      qc.invalidateQueries({ queryKey: ["reports"] });
+      qc.invalidateQueries({ queryKey: ["playbook-adherence"] });
+    },
+  });
+}
+
+export const useTradeAnnotations = (id: string) =>
+  useQuery({ queryKey: qk.tradeAnnotations(id), queryFn: () => api(`/trades/${id}/annotations`, { schema: z.array(s.tradeAnnotation) }) });
+
+export function useAddTradeAnnotation(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { bar_time: string; price?: string; kind: string; text: string }) =>
+      api(`/trades/${id}/annotations`, { method: "POST", body, schema: s.tradeAnnotation }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tradeAnnotations(id) }),
+  });
+}
+
+export function useDeleteTradeAnnotation(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (aid: string) => api(`/trades/${id}/annotations/${aid}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.tradeAnnotations(id) }),
+  });
+}
+
+export const useReports = (q: Query) =>
+  useQuery({ queryKey: qk.reports(q), queryFn: () => api("/analytics/reports", { query: q, schema: s.reports }) });
+
+export const usePlaybookAdherence = (id: string, q: Query) =>
+  useQuery({
+    queryKey: qk.playbookAdherence(id, q),
+    queryFn: () => api(`/playbooks/${id}/adherence`, { query: q, schema: s.adherenceReport }),
+  });

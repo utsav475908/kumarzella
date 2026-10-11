@@ -1,17 +1,20 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { useCreateReplay, useTradeChart } from "../api/hooks";
-import type { TradeDetail } from "../api/schemas";
+import { useAddTradeAnnotation, useCreateReplay, useDeleteTradeAnnotation, useTradeAnnotations, useTradeChart } from "../api/hooks";
+import type { Bar, TradeAnnotation, TradeDetail } from "../api/schemas";
+import { snapToBar } from "../lib/bars";
 import { fmtDateTime, fmtMoney, fmtR, trimDecimal } from "../lib/format";
 import { CandleChart, type ChartMarker, type PriceLine } from "./CandleChart";
 import { ExecutionChart } from "./ExecutionChart";
-import { Badge, Button, ErrorState, Loading, Select, errorMessage } from "./ui";
+import { Badge, Button, ErrorState, Field, Input, Loading, Select, errorMessage } from "./ui";
 
 const TIMEFRAMES = ["1m", "5m", "15m", "1h"];
 
 export function TradeChartPanel({ d }: { d: TradeDetail }) {
   const [tf, setTf] = useState("1m");
   const chart = useTradeChart(d.id, tf);
+  const notes = useTradeAnnotations(d.id);
+  const [selected, setSelected] = useState<Bar | null>(null);
   const create = useCreateReplay();
   const nav = useNavigate();
   const c = d.currency;
@@ -38,9 +41,12 @@ export function TradeChartPanel({ d }: { d: TradeDetail }) {
     return <Loading label={`Downloading ${data.provider?.display_name ?? "market"} data for ${data.coverage?.pending_days.length ?? 0} day(s)…`} />;
   }
 
-  const markers: ChartMarker[] = data.markers.map((m) => ({
-    t: m.t, kind: m.side, text: `${m.side === "buy" ? "B" : "S"} ${trimDecimal(m.quantity)} @ ${trimDecimal(m.price)}`,
-  }));
+  const markers: ChartMarker[] = [
+    ...data.markers.map((m) => ({
+      t: m.t, kind: m.side, text: `${m.side === "buy" ? "B" : "S"} ${trimDecimal(m.quantity)} @ ${trimDecimal(m.price)}`,
+    })),
+    ...(notes.data ?? []).map((a) => ({ t: snapToBar(Date.parse(a.bar_time) / 1000, tf), kind: "note" as const, text: a.text.slice(0, 24) })),
+  ];
   const lines: PriceLine[] = [];
   if (data.planned_stop_price) lines.push({ price: data.planned_stop_price, label: "stop", tone: "loss" });
   if (data.planned_target_price) lines.push({ price: data.planned_target_price, label: "target", tone: "gain" });
@@ -66,8 +72,9 @@ export function TradeChartPanel({ d }: { d: TradeDetail }) {
       {data.bars.length === 0 ? (
         <p className="text-sm text-muted">No candles for this period. {failed.length ? `Download failed: ${failed[0].error}` : ""}</p>
       ) : (
-        <CandleChart bars={data.bars} timeframe={tf} markers={markers} priceLines={lines} testId="trade-candles" />
+        <CandleChart bars={data.bars} timeframe={tf} markers={markers} priceLines={lines} testId="trade-candles" onBarClick={setSelected} />
       )}
+      <ChartNotes tradeId={d.id} selected={selected} onDone={() => setSelected(null)} notes={notes.data ?? []} error={notes.error} />
       {ex ? (
         <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4" data-testid="trade-excursions">
           <div><div className="text-xs text-muted">MAE</div><div className="num text-loss">{fmtMoney(ex.mae, c)}</div>
@@ -83,6 +90,55 @@ export function TradeChartPanel({ d }: { d: TradeDetail }) {
         <p className="text-xs text-muted">{data.gaps.length} gap(s) of 5+ minutes without ticks in this window (normal around the 17:00 New York rollover).</p>
       )}
       <p className="text-xs text-muted">{[...(data.notes ?? []), data.provider?.attribution].filter(Boolean).join(" ")}</p>
+    </div>
+  );
+}
+
+const KINDS = [["note", "Note"], ["mistake", "Mistake"], ["good", "Good decision"]] as const;
+
+/** Notes pinned to a candle of this trade's chart. Click a candle to add one. */
+function ChartNotes({ tradeId, selected, onDone, notes, error }: {
+  tradeId: string; selected: Bar | null; onDone: () => void; notes: TradeAnnotation[]; error: unknown;
+}) {
+  const add = useAddTradeAnnotation(tradeId);
+  const del = useDeleteTradeAnnotation(tradeId);
+  const [text, setText] = useState("");
+  const [kind, setKind] = useState<string>("note");
+  const at = selected ? new Date(selected.t * 1000).toISOString() : "";
+  return (
+    <div className="space-y-2" data-testid="chart-notes">
+      {selected ? (
+        <form className="flex flex-wrap items-end gap-2" onSubmit={(e) => {
+          e.preventDefault();
+          if (!text.trim()) return;
+          add.mutate({ bar_time: at, price: selected.c, kind, text: text.trim() }, { onSuccess: () => { setText(""); onDone(); } });
+        }}>
+          <Field label={`Chart note at ${fmtDateTime(at)} (close ${trimDecimal(selected.c)})`}>
+            <Input value={text} onChange={(e) => setText(e.target.value)} maxLength={5000} autoFocus />
+          </Field>
+          <Select aria-label="Note type" value={kind} onChange={(e) => setKind(e.target.value)}>
+            {KINDS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </Select>
+          <Button type="submit" disabled={add.isPending}>Save note</Button>
+          <Button type="button" variant="ghost" onClick={onDone}>Cancel</Button>
+          {add.isError && <p className="w-full text-xs text-loss" role="alert">{errorMessage(add.error)}</p>}
+        </form>
+      ) : (
+        <p className="text-xs text-muted">Click a candle to pin a note, mistake or good decision to it.</p>
+      )}
+      {error ? <p className="text-xs text-loss" role="alert">{errorMessage(error)}</p> : null}
+      {notes.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {notes.map((a) => (
+            <li key={a.id} className="flex items-center gap-2">
+              <Badge tone={a.kind === "mistake" ? "loss" : a.kind === "good" ? "gain" : "muted"}>{KINDS.find(([k]) => k === a.kind)?.[1]}</Badge>
+              <span className="text-xs text-muted">{fmtDateTime(a.bar_time)}{a.price ? ` @ ${trimDecimal(a.price)}` : ""}</span>
+              <span>{a.text}</span>
+              <button className="ml-auto text-xs text-muted hover:text-loss" onClick={() => del.mutate(a.id)} aria-label={`Delete chart note ${a.text}`}>✕</button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

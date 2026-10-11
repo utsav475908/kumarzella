@@ -1,7 +1,10 @@
 import { vi } from "vitest";
 
 /** lightweight-charts draws on canvas, which jsdom lacks. This stand-in records what the components pass to it. */
-export const chartCalls = { data: [] as unknown[][], markers: [] as unknown[][], lines: [] as unknown[] };
+export const chartCalls = {
+  data: [] as unknown[][], markers: [] as unknown[][], lines: [] as unknown[],
+  click: null as null | ((p: { time?: number }) => void),
+};
 
 vi.mock("lightweight-charts", () => {
   const series = () => ({
@@ -20,7 +23,7 @@ vi.mock("lightweight-charts", () => {
       priceScale: () => ({ applyOptions: () => undefined }),
       timeScale: () => ({ fitContent: () => undefined, scrollToRealTime: () => undefined }),
       subscribeCrosshairMove: () => undefined,
-      subscribeClick: () => undefined,
+      subscribeClick: (fn: (p: { time?: number }) => void) => { chartCalls.click = fn; },
       remove: () => undefined,
     }),
     createSeriesMarkers: () => ({ setMarkers: (m: unknown[]) => chartCalls.markers.push(m) }),
