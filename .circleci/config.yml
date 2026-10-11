@@ -10,6 +10,14 @@
 #   GHCR_USER   GitHub user or org that owns the packages (e.g. utsav475908)
 #   GHCR_TOKEN  a GitHub personal access token with the write:packages scope
 # Without them the publish step says so and is skipped; the pipeline stays green.
+#
+#   deploy    main only, after docker: copies the Compose files to a DigitalOcean Droplet over SSH and restarts the
+#             stack on the images just published (docs/deploy-digitalocean.md). Needs, in addition to the above:
+#   DEPLOY_HOST  the Droplet's IP address or host name
+#   DEPLOY_USER  the SSH user on it (default: root)
+#   DEPLOY_KNOWN_HOSTS  the Droplet's verified host key line(s) (ssh-keyscan output); SSH refuses unknown hosts
+#   GHCR_PULL_TOKEN  optional read:packages-only token used on the Droplet (falls back to GHCR_TOKEN)
+#   and the Droplet's private SSH key added under Project Settings > SSH Keys. Skipped while DEPLOY_HOST is unset.
 version: 2.1
 
 executors:
@@ -170,7 +178,7 @@ jobs:
               sleep 3
             done
             page=$(curl -fsS http://localhost:8080/)
-            grep -q 'id="root"' <<< "$page"
+            [[ "$page" == *'id="root"'* ]] || { echo "index.html not served"; exit 1; }
             echo "stack healthy"
       - run:
           name: Compose logs on failure
@@ -200,6 +208,42 @@ jobs:
                     done
                   done
 
+  deploy:
+    docker:
+      - image: cimg/base:stable
+    environment:
+      DEPLOY_PATH: /opt/edgeledger
+    steps:
+      - run:
+          name: Check deploy settings
+          command: |
+            if [ -z "${DEPLOY_HOST:-}" ] || [ -z "${GHCR_USER:-}" ] || [ -z "${GHCR_TOKEN:-}" ]; then
+              echo "DEPLOY_HOST, GHCR_USER or GHCR_TOKEN is not set in CircleCI, so nothing is deployed. Skipping."
+              circleci-agent step halt
+              exit 0
+            fi
+            if [ -z "${DEPLOY_KNOWN_HOSTS:-}" ]; then
+              echo "DEPLOY_KNOWN_HOSTS is not set: add the Droplet's verified host key (docs/deploy-digitalocean.md)."
+              exit 1
+            fi
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+      - checkout
+      - add_ssh_keys
+      - run:
+          name: Copy the Compose files to the server
+          command: |
+            target="${DEPLOY_USER:-root}@$DEPLOY_HOST"
+            ssh_opts=(-o StrictHostKeyChecking=yes)
+            ssh "${ssh_opts[@]}" "$target" "mkdir -p $DEPLOY_PATH/deploy"
+            scp "${ssh_opts[@]}" docker-compose.yml docker-compose.prod.yml "$target:$DEPLOY_PATH/"
+            scp "${ssh_opts[@]}" deploy/Caddyfile deploy/remote-deploy.sh "$target:$DEPLOY_PATH/deploy/"
+      - run:
+          name: Pull the new images and restart
+          command: |
+            echo "${GHCR_PULL_TOKEN:-$GHCR_TOKEN}" | ssh -o StrictHostKeyChecking=yes "${DEPLOY_USER:-root}@$DEPLOY_HOST" \
+              "GHCR_USER=$GHCR_USER IMAGE_TAG=$CIRCLE_SHA1 $DEPLOY_PATH/deploy/remote-deploy.sh"
+
 workflows:
   ci-cd:
     jobs:
@@ -209,3 +253,8 @@ workflows:
           requires: [backend, frontend]
       - docker:
           requires: [backend, frontend]
+      - deploy:
+          requires: [e2e, docker]
+          filters:
+            branches:
+              only: main
