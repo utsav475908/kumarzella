@@ -103,6 +103,16 @@ Followed rate = followed ÷ (followed + broken). Incomplete trades are left out.
 | By month | Grouped by the session date's month. |
 | Costs by symbol | Fees, fees as % of gross profit, net and gross P&L, and trades turned negative by costs, per symbol. |
 
+## Backtest results
+
+Simulated trades from manual backtests use the same trade construction and aggregates as real trades, computed over that session's simulated trades only. Three figures are specific to backtests:
+
+- **Balance** = starting balance + realized net P&L of closed simulated trades, in the pair's quote currency.
+- **Return** = realized net P&L ÷ starting balance.
+- **R multiple** uses the stop-loss attached to the entry order as the initial risk.
+
+The fill rules are in [backtesting.md](backtesting.md).
+
 ## Regression fixture
 
 `backend/tests/fixtures/fixture_a.csv` is an executions file, and its expected results were computed by hand in `fixture_a_expected.json`:

@@ -213,3 +213,22 @@ export const usePlaybookAdherence = (id: string, q: Query) =>
     queryKey: qk.playbookAdherence(id, q),
     queryFn: () => api(`/playbooks/${id}/adherence`, { query: q, schema: s.adherenceReport }),
   });
+
+// ---------------------------------------------------------------- manual backtesting
+
+export const useBacktests = () =>
+  useQuery({ queryKey: ["backtests"], queryFn: () => api("/backtests", { schema: z.array(s.backtestListItem) }) });
+
+export const useBacktestBars = (id: string) =>
+  useQuery({
+    queryKey: ["backtest-bars", id],
+    queryFn: () => api(`/backtests/${id}/bars`, { schema: s.backtestBars }),
+    refetchInterval: (q) => (q.state.data?.status === "pending" ? 3000 : false),
+    refetchOnWindowFocus: false,
+  });
+
+export const useBacktestState = (id: string) =>
+  useQuery({ queryKey: ["backtest", id], queryFn: () => api(`/backtests/${id}`, { schema: s.backtestState }), refetchOnWindowFocus: false });
+
+export const useBacktestResults = (id: string, enabled: boolean) =>
+  useQuery({ queryKey: ["backtest-results", id], queryFn: () => api(`/backtests/${id}/results`, { schema: s.backtestResults }), enabled });

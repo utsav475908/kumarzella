@@ -4,6 +4,7 @@ import { Layout, useTheme } from "./components/Layout";
 import { ErrorState, Loading } from "./components/ui";
 import { AccountsPage } from "./pages/Accounts";
 import { LoginPage, RegisterPage } from "./pages/Auth";
+import { BacktestListPage, BacktestPage } from "./pages/Backtest";
 import { CalendarPage } from "./pages/CalendarPage";
 import { DashboardPage } from "./pages/Dashboard";
 import { ImportWizard } from "./pages/ImportWizard";
@@ -38,6 +39,8 @@ export default function App() {
         <Route path="imports" element={<ImportsPage />} />
         <Route path="replay" element={<ReplayListPage />} />
         <Route path="replay/:id" element={<ReplayPlayerPage />} />
+        <Route path="backtest" element={<BacktestListPage />} />
+        <Route path="backtest/:id" element={<BacktestPage />} />
         <Route path="playbooks" element={<PlaybooksPage />} />
         <Route path="playbooks/:id" element={<PlaybookPage />} />
         <Route path="accounts" element={<AccountsPage />} />

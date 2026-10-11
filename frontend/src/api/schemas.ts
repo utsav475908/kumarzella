@@ -557,3 +557,135 @@ export const reports = z.object({
   })),
 });
 export type Reports = z.infer<typeof reports>;
+
+// ---------------------------------------------------------------- manual backtesting (Phase 6)
+
+export const backtestSession = z.object({
+  id: z.string(),
+  title: z.string(),
+  provider: z.string(),
+  symbol: z.string(),
+  timeframe: z.string(),
+  side: z.string(),
+  start_at: z.string(),
+  end_at: z.string(),
+  cursor_at: z.string(),
+  speed: z.number(),
+  currency: z.string(),
+  starting_balance: money,
+  config: z.record(z.string(), z.unknown()),
+  notes: z.string().nullable(),
+  status: z.enum(["active", "completed"]),
+  completed_at: z.string().nullable(),
+  at_end: z.boolean(),
+  progress: z.number(),
+  pip_size: money,
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type BacktestSession = z.infer<typeof backtestSession>;
+
+export const backtestListItem = backtestSession.extend({ closed_trades: z.number(), net_pnl: money });
+
+export const simOrder = z.object({
+  id: z.string(),
+  seq: z.number(),
+  kind: z.enum(["entry", "stop_loss", "take_profit"]),
+  parent_id: z.string().nullable(),
+  side: z.enum(["buy", "sell"]),
+  type: z.enum(["market", "limit", "stop"]),
+  quantity: money,
+  price: moneyN,
+  stop_loss: moneyN,
+  take_profit: moneyN,
+  risk_amount: moneyN,
+  placed_at: z.string(),
+  status: z.enum(["pending", "filled", "cancelled"]),
+  cancelled_at: z.string().nullable(),
+  reason: z.string().nullable(),
+  note: z.string().nullable(),
+});
+export type SimOrder = z.infer<typeof simOrder>;
+
+export const simFill = z.object({
+  id: z.string(),
+  order_id: z.string().nullable(),
+  kind: z.string(),
+  t: z.number(),
+  ts: z.string(),
+  side: z.enum(["buy", "sell"]),
+  quantity: money,
+  price: money,
+  commission: money,
+  slippage: money,
+  ambiguous: z.boolean(),
+  reason: z.string().nullable(),
+});
+export type SimFill = z.infer<typeof simFill>;
+
+export const simTrade = z.object({
+  id: z.string(),
+  number: z.number(),
+  direction: z.string(),
+  status: z.string(),
+  opened_at: z.string(),
+  closed_at: z.string().nullable(),
+  entry_qty: money,
+  entry_avg_price: money,
+  exit_avg_price: moneyN,
+  gross_pnl: money,
+  fees: money,
+  net_pnl: money,
+  initial_risk: moneyN,
+  r_multiple: moneyN,
+  ambiguous: z.boolean(),
+});
+export type SimTrade = z.infer<typeof simTrade>;
+
+export const backtestState = z.object({
+  session: backtestSession,
+  position: money,
+  open_pnl: moneyN,
+  quote: z.object({ t: z.number(), bid: money, ask: money }).nullable(),
+  orders: z.array(simOrder),
+  fills: z.array(simFill),
+  trades: z.array(simTrade),
+  bars: z.array(bar).optional(),
+  events: z.object({ fills: z.number(), cancels: z.number(), ambiguous: z.number() }).nullable().optional(),
+});
+export type BacktestState = z.infer<typeof backtestState>;
+
+export const backtestBars = z.object({
+  session: backtestSession,
+  status: chartStatus,
+  coverage,
+  provider: providerInfo,
+  bars: z.array(bar),
+});
+export type BacktestBars = z.infer<typeof backtestBars>;
+
+export const backtestResults = z.object({
+  session: backtestSession,
+  currency: z.string(),
+  starting_balance: money,
+  realized_net_pnl: money,
+  balance: money,
+  return_pct: moneyN,
+  position: money,
+  open_pnl: moneyN,
+  summary: z.record(z.string(), z.unknown()),
+  equity_curve: z.array(z.object({ trade_id: z.string(), closed_at: z.string(), symbol: z.string(), net_pnl: money, cumulative: money, drawdown: money })),
+  ambiguous_fills: z.number(),
+  warnings: z.array(z.string()),
+  disclaimer: z.string(),
+  trades: z.array(simTrade),
+});
+export type BacktestResults = z.infer<typeof backtestResults>;
+
+export const backtestVerify = z.object({
+  reproducible: z.boolean(),
+  stored_fills: z.number(),
+  rerun_fills: z.number(),
+  simulator: z.string(),
+  mismatches: z.array(z.unknown()),
+});

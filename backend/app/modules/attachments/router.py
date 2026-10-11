@@ -98,9 +98,9 @@ def download(attachment_id: UUID, user: User = Depends(get_current_user), db: Se
 def delete_attachment(attachment_id: UUID, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     a = _att(db, user, attachment_id)
     key = a.storage_key
-    kind = "trade" if a.trade_id else "playbook"
+    kind = "trade" if a.trade_id else "playbook" if a.playbook_id else "backtest_session"
     audit.record(db, user_id=user.id, action=f"{kind}.attachment_deleted", entity_type=kind,
-                 entity_id=a.trade_id or a.playbook_id)  # fmt: skip
+                 entity_id=a.trade_id or a.playbook_id or a.backtest_session_id)  # fmt: skip
     db.delete(a)
     db.commit()
     get_storage().delete(key)

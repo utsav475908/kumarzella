@@ -7,6 +7,7 @@ def api_routers() -> list[APIRouter]:
     from app.modules.analytics.router import router as analytics
     from app.modules.attachments.router import router as attachments
     from app.modules.auth.router import router as auth
+    from app.modules.backtesting.router import router as backtests
     from app.modules.imports.router import router as imports
     from app.modules.journal.router import router as journal
     from app.modules.marketdata.router import router as marketdata
@@ -17,4 +18,4 @@ def api_routers() -> list[APIRouter]:
     from app.modules.trades.router import router as trades
 
     return [auth, accounts, imports, trades, trade_charts, journal, playbooks, attachments, analytics, exports,
-            marketdata, replay, trade_review]  # fmt: skip
+            marketdata, replay, trade_review, backtests]  # fmt: skip

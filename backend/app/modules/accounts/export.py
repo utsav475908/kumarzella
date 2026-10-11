@@ -14,6 +14,7 @@ from app.core.deps import get_current_user
 from app.modules.accounts.models import Account, CashTransaction
 from app.modules.audit import service as audit
 from app.modules.auth.models import User
+from app.modules.backtesting.models import BacktestFill, BacktestOrder, BacktestSession, BacktestTrade
 from app.modules.executions.models import Execution
 from app.modules.journal.models import DayNote, Tag, TradeNote, TradeTag
 from app.modules.playbooks.models import Playbook, PlaybookVersion, TradeChecklistAnswer
@@ -48,6 +49,10 @@ def export_me(user: User = Depends(get_current_user), db: Session = Depends(get_
         "trade_checklist_answers": _rows(db, TradeChecklistAnswer, TradeChecklistAnswer.user_id == user.id),
         "trade_annotations": _rows(db, TradeAnnotation, TradeAnnotation.user_id == user.id),
         # Replays are the user's own records. Provider candles are not: they stay out of exports (licence terms).
+        "backtest_sessions": _rows(db, BacktestSession, BacktestSession.user_id == user.id),
+        "backtest_orders": _rows(db, BacktestOrder, BacktestOrder.user_id == user.id),
+        "backtest_fills": _rows(db, BacktestFill, BacktestFill.user_id == user.id),
+        "backtest_trades": _rows(db, BacktestTrade, BacktestTrade.user_id == user.id),
         "replay_sessions": _rows(db, ReplaySession, ReplaySession.user_id == user.id),
         "replay_annotations": _rows(db, ReplayAnnotation, ReplayAnnotation.user_id == user.id),
     }

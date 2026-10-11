@@ -13,8 +13,9 @@ backend/   FastAPI modular monolith: SQLAlchemy 2 + Alembic + PostgreSQL, Redis,
            app/core      config, db, money (Decimal helpers), security, CSRF, rate limiting, logging, storage
            app/modules   auth, accounts, instruments, imports, executions, positions, trades, journal,
                          playbooks, attachments, audit, analytics
-                         marketdata (provider interface, Dukascopy adapter, candle cache), replay
-                         (placeholder packages for Phases 6 to 8: backtesting, ai, billing, broker_adapters)
+                         marketdata (provider interface, Dukascopy adapter, candle cache), replay,
+                         backtesting (pure order simulator and simulated sessions)
+                         (placeholder packages for Phases 7 and 8: ai, billing, broker_adapters)
 docker-compose.yml  db, redis, minio (S3), migrate, api, worker, web (nginx serving the SPA and proxying /api)
 ```
 
@@ -204,14 +205,23 @@ Built before Phase 4, at the project owner's request, with one provider and one 
   - Progress bar, annotations on any revealed bar, trade notes and playbook overlay, and save and resume.
   - The player is an explicit state machine (`src/lib/replayMachine.ts`) with the states loading, ready, playing, paused, seeking, completed and error.
 
+### Phase 6: manual backtesting and deterministic order simulation
+
+- **Sessions** (`/backtest`): a forex pair, a timeframe, a window of up to 31 UTC days that ended before today (the form offers 1 to 10), a starting balance in the pair's quote currency, a commission per 100,000 units per side, and slippage in pips. Bars come from the blind replay engine, so a bar that closes after the cursor is never sent. A session opens with a short warm-up of up to a quarter of the window, and the cursor only moves forward.
+- **Orders:** market, limit and stop, sized in units or by a risk amount (turned into units by the server from the stop distance, rounded down to 1,000). An entry can carry a stop-loss and a take-profit, which become reduce-only, one-cancels-the-other orders when it fills. Pending orders can be cancelled and show on the chart as price lines.
+- **The simulator** (`app/modules/backtesting/simulator.py`, version `sim-1`) is pure: no database, clock or randomness. It walks 1-minute bid and ask candles, so buys fill on the ask and sells on the bid. When the stop and the target are both reached inside one minute, the stop is assumed to fill first and the fill is marked ambiguous. The full rules are in [docs/backtesting.md](docs/backtesting.md).
+- **Positions and results:** fills feed the same position engine and metrics as real trades (average cost, R from the entry's stop). The page shows the open position, open P&L at the bid or ask, orders, fills, simulated trades, and a results panel when the session is finished: net P&L, return, win rate, profit factor, maximum drawdown and an equity curve, with small-sample and ambiguity warnings and a disclaimer.
+- **Reproducibility:** the exact configuration is stored on the session. "Re-run and verify" replays the whole order log from the candles and compares every fill with what was stored.
+- **Kept apart from real data:** simulated orders, fills and trades live in their own tables (`backtest_*`, migration 0004). They never appear in the journal, dashboard or reports. They are included in the account data export, and screenshots and notes attach to the session.
+
 ## Verification status (2026-10-11)
 
 | Check | How it was run | Result |
 |---|---|---|
-| Backend pytest: 125 tests covering auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE, replay, playbook versions, rule adherence, checklists, annotations and reports | Natively, against PostgreSQL 16 and Redis 7 | pass |
+| Backend pytest: 143 tests covering auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE, replay, playbook versions, rule adherence, checklists, annotations, reports, the order simulator's fill rules, and backtest sessions (determinism, re-run verification, ownership and separation from real trades) | Natively, against PostgreSQL 16 and Redis 7 | pass |
 | Ruff format and lint; `alembic check` | Natively | clean |
-| Frontend vitest (32, including the replay state machine, chart states, the adherence panel, chart notes, rules-form validation and the reports page), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
-| Playwright journeys (4 tests, including forex trade chart, MAE/MFE, a review replay, and versioned playbook rules with checklist adherence and reports) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
+| Frontend vitest (36, including the replay state machine, chart states, the adherence panel, chart notes, rules-form validation, the reports page, the order ticket, backtest stepping and results), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
+| Playwright journeys (5 tests, including forex trade chart, MAE/MFE, a review replay, versioned playbook rules with checklist adherence and reports, and a manual backtest with a bracket order, results and a verified re-run) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
 | Compose stack: all images built; db, redis, migrate, api, worker and web healthy; fixture A imported through nginx on :8080 with dashboard net `260.45`, including a run forced through the Celery worker | Docker, with MinIO swapped for local storage (MinIO's image was not reachable from the build machine) | pass |
 
 The S3 code path (`S3Storage`) is unit-level only. It has not been exercised against a real MinIO or S3 here.
@@ -227,18 +237,19 @@ The S3 code path (`S3Storage`) is unit-level only. It has not been exercised aga
 - Each CSV import targets one account. Multi-account broker files must be split first.
 - The UI shows times in the browser's local timezone. Session dates and hour buckets use market time.
 - There are no broker API adapters yet; import is CSV only.
-- Billing, the AI coach, and both kinds of backtesting are placeholder modules with no endpoints.
+- Billing, the AI coach and automated backtesting are placeholder modules with no endpoints.
+- Backtests simulate on 1-minute candles: orders fill whole (no partial fills or depth), the order of events inside a minute is unknown (handled conservatively and marked ambiguous), and fills come from Dukascopy prices, not a broker's. Balances are in the quote currency, with no conversion to an account currency, no swap or financing, and no margin checks.
 - Email verification and password reset are not implemented, because no mail service is configured.
 - Rule adherence checks what trade data can show. Rules that need chart reading (for example "entered on a break of the range") are covered only by the trader's checklist answers.
 - The trades-per-day rule counts trades of the same playbook in the same account on the same session date.
 
-## Next milestone: Phase 6 (manual backtesting and deterministic order simulation)
+## Next milestone: Phase 7 (AI coach with evidence-grounded tools)
 
-Phase numbers follow the project specification. Phases 1 to 5 are done.
+Phase numbers follow the project specification. Phases 1 to 6 are done.
 
-1. Backtesting sessions: symbol, timeframe, date range and starting balance, replayed with the blind replay engine so no future bar is ever sent.
-2. A deterministic order simulator: market, limit and stop orders, position size, stop-loss and take-profit, commissions and configurable slippage. Ambiguous bars where both stop and target are touched are resolved conservatively or marked ambiguous.
-3. Open and closed simulated positions, notes and screenshots, and a results report, all stored apart from real trades with the exact configuration for reproducibility.
-4. Determinism tests: the same session and orders always produce the same fills and results.
+1. A coach that answers questions about the trader's own journal through server-side tools (metrics, reports, adherence, trades, backtests) rather than raw data dumps, so every claim cites the numbers it came from.
+2. Strict per-user scoping of every tool call, no access to other users' data, and no trade execution or financial advice framed as certainty.
+3. Conversation history, with tool calls and their evidence shown alongside each answer.
+4. Tests with recorded tool responses, so the coach's evidence handling is checked without a live model.
 
 See also [docs/metrics.md](docs/metrics.md) and [docs/security-and-compliance.md](docs/security-and-compliance.md).
