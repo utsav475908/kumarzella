@@ -9,6 +9,8 @@ RUN --mount=type=secret,id=extra_ca \
     if [ -s /run/secrets/extra_ca ]; then export PIP_CERT=/run/secrets/extra_ca; fi; \
     pip install -r requirements.lock
 COPY . .
+# Local upload storage; compose mounts a volume here, which inherits this ownership.
+RUN mkdir -p /app/var/storage && chown -R app:app /app/var
 USER app
 EXPOSE 8000
 # Migrations run in the `migrate` compose service (or a release step), not on every API start.

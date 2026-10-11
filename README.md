@@ -16,7 +16,7 @@ backend/   FastAPI modular monolith: SQLAlchemy 2 + Alembic + PostgreSQL, Redis,
                          marketdata (provider interface, Dukascopy adapter, candle cache), replay,
                          backtesting (pure order simulator and simulated sessions)
                          (placeholder packages for Phases 7 and 8: ai, billing, broker_adapters)
-docker-compose.yml  db, redis, minio (S3), migrate, api, worker, web (nginx serving the SPA and proxying /api)
+docker-compose.yml  db, redis, migrate, api, worker, web (nginx serving the SPA and proxying /api); uploads on a shared volume
 ```
 
 Rules the code enforces:
@@ -225,9 +225,9 @@ Built before Phase 4, at the project owner's request, with one provider and one 
 | Frontend vitest (36, including the replay state machine, chart states, the adherence panel, chart notes, rules-form validation, the reports page, the order ticket, backtest stepping and results), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
 | Playwright journeys (5 tests, including forex trade chart, MAE/MFE, a review replay, versioned playbook rules with checklist adherence and reports, and a manual backtest with a bracket order, results and a verified re-run) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
 | Live Dukascopy check: real EURUSD, USDJPY and GBPUSD days decoded, ask ≥ bid on every minute | Cloud environment with datafeed.dukascopy.com allowed; httpx replaced by a urllib stand-in (no PyPI there) | pass, after the retry changes |
-| Compose stack: all images built; db, redis, migrate, api, worker and web healthy; fixture A imported through nginx on :8080 with dashboard net `260.45`, including a run forced through the Celery worker | Docker, with MinIO swapped for local storage (MinIO's image was not reachable from the build machine) | pass |
+| Compose stack: all images built; db, redis, migrate, api, worker and web healthy; fixture A imported through nginx on :8080 with dashboard net `260.45`, including a run forced through the Celery worker | Docker. Since 2026-10-11 the stack stores uploads on a shared `storage` volume: MinIO no longer publishes `minio/minio` on Docker Hub, so the image can't be pulled. The 2026-10-11 run also passed the main and playbook browser journeys through :8080 | pass |
 
-The S3 code path (`S3Storage`) is unit-level only. It has not been exercised against a real MinIO or S3 here.
+The S3 code path (`S3Storage`, enabled with `EL_STORAGE_BACKEND=s3` and the `EL_S3_*` settings) is unit-level only. It has not been exercised against a real S3-compatible store here.
 
 ## Known limitations
 
