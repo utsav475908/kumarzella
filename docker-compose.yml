@@ -12,6 +12,8 @@ x-api-env: &api-env
   EL_STORAGE_LOCAL_PATH: /app/var/storage
   EL_SECRET_KEY: ${EL_SECRET_KEY:-dev-insecure-change-me}
   EL_CORS_ORIGINS: '["http://localhost:8080","http://localhost:5173"]'
+  # AI coach: put ANTHROPIC_API_KEY=sk-ant-... in a .env file next to this one. Empty = coach switched off.
+  EL_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
 services:
   db:

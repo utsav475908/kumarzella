@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,6 +64,23 @@ class Settings(BaseSettings):
     marketdata_inline_max_days: int = 3
     # A day that failed to download is retried after this many minutes.
     marketdata_error_retry_minutes: int = 30
+
+    # AI coach (Claude). Uses the operator's own Anthropic API key; without one the coach is switched off and nothing
+    # is sent anywhere. ANTHROPIC_API_KEY is accepted too, for native development.
+    anthropic_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("EL_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")
+    )
+    anthropic_base_url: str | None = None
+    ai_model: str = "claude-opus-5-5"
+    ai_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
+    ai_fallbacks: bool = True  # server-side refusal fallbacks (fallbacks: "default")
+    ai_max_tokens: int = 8000  # per model call
+    ai_max_tool_rounds: int = 6  # model calls that may request tools, per answer
+    ai_max_tool_calls: int = 16  # tool executions per answer
+    ai_token_budget: int = 250_000  # input + output tokens per answer, across all model calls
+    ai_timeout_seconds: float = 120.0
+    ai_rate_limit: int = 30  # coach requests per user per window
+    ai_rate_window_seconds: int = 3600
 
 
 @lru_cache

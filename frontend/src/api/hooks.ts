@@ -232,3 +232,39 @@ export const useBacktestState = (id: string) =>
 
 export const useBacktestResults = (id: string, enabled: boolean) =>
   useQuery({ queryKey: ["backtest-results", id], queryFn: () => api(`/backtests/${id}/results`, { schema: s.backtestResults }), enabled });
+
+// ---------------------------------------------------------------- AI coach
+
+export const useAiStatus = () =>
+  useQuery({ queryKey: ["ai-status"], queryFn: () => api("/ai/status", { schema: s.aiStatus }), staleTime: 60_000 });
+
+export const useAiReviews = (q: Query = {}) =>
+  useQuery({ queryKey: ["ai-reviews", q], queryFn: () => api("/ai/reviews", { query: q, schema: z.array(s.aiReviewSummary) }) });
+
+export const useAiReview = (id: string | null) =>
+  useQuery({ queryKey: ["ai-review", id], queryFn: () => api(`/ai/reviews/${id}`, { schema: s.aiReview }), enabled: !!id });
+
+function useAiMutation<B>(path: (b: B) => string, body: (b: B) => unknown) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: B) => api(path(b), { method: "POST", body: body(b), schema: s.aiReview }),
+    onSuccess: (r) => {
+      qc.setQueryData(["ai-review", r.id], r);
+      qc.invalidateQueries({ queryKey: ["ai-reviews"] });
+    },
+  });
+}
+
+export const useAskCoach = () =>
+  useAiMutation((_: { question: string; filters?: Record<string, unknown> }) => "/ai/ask", (b) => b);
+export const useSummarise = () =>
+  useAiMutation((_: { date_from: string; date_to: string }) => "/ai/summary", (b) => b);
+export const useReviewTrade = () => useAiMutation((id: string) => `/ai/trades/${id}/review`, () => undefined);
+
+export function useDeleteAiReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/ai/reviews/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ai-reviews"] }),
+  });
+}

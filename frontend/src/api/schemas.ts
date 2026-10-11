@@ -689,3 +689,59 @@ export const backtestVerify = z.object({
   simulator: z.string(),
   mismatches: z.array(z.unknown()),
 });
+
+// ---------------------------------------------------------------- AI coach
+
+export const aiStatus = z.object({
+  enabled: z.boolean(),
+  model: z.string().nullable(),
+  fallbacks: z.boolean(),
+  reason: z.string().nullable(),
+  limits: z.object({ requests_per_hour: z.number(), tool_rounds: z.number() }),
+});
+export type AiStatus = z.infer<typeof aiStatus>;
+
+export const aiEvidence = z.object({
+  ref: z.string(),
+  tool: z.string(),
+  label: z.string(),
+  input: z.record(z.string(), z.unknown()),
+  filters: z.record(z.string(), z.unknown()),
+  sample_size: z.number().nullable(),
+  result: z.record(z.string(), z.unknown()),
+});
+export type AiEvidence = z.infer<typeof aiEvidence>;
+
+export const aiSuggestedTag = z.object({
+  name: z.string(),
+  category: z.string(),
+  tag_id: z.string().nullable(),
+  new: z.boolean(),
+  already_applied: z.boolean(),
+  reason: z.string(),
+});
+export type AiSuggestedTag = z.infer<typeof aiSuggestedTag>;
+
+export const aiReviewSummary = z.object({
+  id: z.string(),
+  kind: z.enum(["ask", "trade_review", "period_summary"]),
+  trade_id: z.string().nullable(),
+  period_from: z.string().nullable(),
+  period_to: z.string().nullable(),
+  question: z.string(),
+  status: z.enum(["ok", "ungrounded", "declined", "incomplete"]),
+  created_at: z.string(),
+});
+export type AiReviewSummary = z.infer<typeof aiReviewSummary>;
+
+export const aiReview = aiReviewSummary.extend({
+  answer: z.string(),
+  limitations: z.array(z.string()),
+  suggested_tags: z.array(aiSuggestedTag),
+  cited: z.array(z.string()),
+  unsupported_numbers: z.array(z.string()),
+  model: z.string(),
+  usage: z.record(z.string(), z.number()),
+  evidence: z.array(aiEvidence),
+});
+export type AiReview = z.infer<typeof aiReview>;

@@ -69,3 +69,15 @@ EdgeLedger is a journal and analytics tool:
 - **Before offering EdgeLedger commercially with this data, get written permission from Dukascopy, or switch to a provider whose plan allows display to end users.** The provider interface (`app/modules/marketdata/providers/base.py`) lets another adapter replace Dukascopy without changing charts, MAE/MFE or replay.
 - No other market data ships with EdgeLedger. Data from an exchange or a vendor is subject to that provider's licence, which usually covers display limits, redistribution, and the professional or non-professional status of each user.
 - Set `EL_MARKETDATA_PROVIDER=none` to turn fetching off entirely.
+
+## AI coach
+
+- **Off by default.** The coach is off until the operator sets their own Anthropic API key (`EL_ANTHROPIC_API_KEY`). Until then nothing is sent to Anthropic.
+- **What is sent.** When the coach is on, a request carries the trader's question and the results of the read-only tools the model asks for. These results can include trade figures, symbols, tags, playbook names and note text. Account credentials, sessions and other users' data are never sent.
+- **Scoping.** Every tool runs as the signed-in user, with the user id taken from the session and not from the model.
+- **No writes.** No tool writes data, places orders or changes settings.
+- **Untrusted text.** Notes and imported text are passed to the model as `untrusted_text` data, never as instructions.
+- **Logging.** Coach logs carry ids, status, counts, tokens and latency only. Questions, answers and evidence are stored in the user's own `ai_reviews` and `ai_evidence` rows, which are exported with their data and deleted with the user or the trade.
+- **Not advice.** Answers are not financial advice. Every figure is checked against the evidence, and untraceable figures are flagged to the user.
+
+Details are in [ai-coach.md](ai-coach.md).

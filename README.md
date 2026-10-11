@@ -15,7 +15,8 @@ backend/   FastAPI modular monolith: SQLAlchemy 2 + Alembic + PostgreSQL, Redis,
                          playbooks, attachments, audit, analytics
                          marketdata (provider interface, Dukascopy adapter, candle cache), replay,
                          backtesting (pure order simulator and simulated sessions)
-                         (placeholder packages for Phases 7 and 8: ai, billing, broker_adapters)
+                         ai (Claude coach: read-only tools, bounded tool loop, evidence check)
+                         (placeholder packages for Phase 8: billing, broker_adapters)
 docker-compose.yml  db, redis, migrate, api, worker, web (nginx serving the SPA and proxying /api); uploads on a shared volume
 ```
 
@@ -47,10 +48,15 @@ docker compose up --build
 docker compose exec api python -m scripts.seed_demo     # optional synthetic demo user
 ```
 
-Demo login: `demo@example.com` / `demo-password-1`. If your network uses a TLS-intercepting proxy, pass its CA to the image builds as a BuildKit secret:
+Demo login: `demo@example.com` / `demo-password-1`.
+
+To switch on the AI coach, put your own Anthropic API key in a file named `.env` next to `docker-compose.yml` (`ANTHROPIC_API_KEY=sk-ant-...`) and run `docker compose up -d` again. Without a key the coach page explains how to turn it on, and nothing is sent anywhere. See [docs/ai-coach.md](docs/ai-coach.md). If your network uses a TLS-intercepting proxy, pass its CA to the image builds as a BuildKit secret:
 
 ```bash
-docker compose build --secret id=extra_ca,src=/path/to/ca.crt
+docker buildx build --load --secret id=extra_ca,src=/path/to/ca.crt -t edgeledger-api backend
+docker buildx build --load --secret id=extra_ca,src=/path/to/ca.crt -t edgeledger-web frontend
+docker tag edgeledger-api edgeledger-migrate && docker tag edgeledger-api edgeledger-worker
+docker compose up -d --no-build
 ```
 
 ### Native development
@@ -106,6 +112,15 @@ The market-data journey needs candles. Write the generated test candles (synthet
 cd backend && python -m tests.make_mirror /tmp/el-mirror
 EL_DUKASCOPY_BASE_URL=file:///tmp/el-mirror EL_DATABASE_URL=postgresql+psycopg://tj:tj@localhost:5432/tradejournal_e2e uvicorn app.main:app --port 8000 &
 ```
+
+The AI coach journey needs a model. To run it without an API key, start the scripted stand-in (`tests/fake_claude.py`, which follows a fixed script and labels its answers as test output) and point the API at it:
+
+```bash
+cd backend && python -m tests.fake_claude --port 8765 &
+EL_ANTHROPIC_API_KEY=sk-test-fake EL_ANTHROPIC_BASE_URL=http://127.0.0.1:8765 EL_DATABASE_URL=... uvicorn app.main:app --port 8000 &
+```
+
+Without it, the journey checks that the coach page explains how to switch the coach on.
 
 ### Continuous integration (CircleCI)
 
@@ -222,14 +237,30 @@ Built before Phase 4, at the project owner's request, with one provider and one 
 - **Reproducibility:** the exact configuration is stored on the session. "Re-run and verify" replays the whole order log from the candles and compares every fill with what was stored.
 - **Kept apart from real data:** simulated orders, fills and trades live in their own tables (`backtest_*`, migration 0004). They never appear in the journal, dashboard or reports. They are included in the account data export, and screenshots and notes attach to the session.
 
+### Phase 7: AI coach with evidence-grounded tools
+
+- **Coach page** (`/coach`): ask a question about your own trading, or use one of the suggested questions, or summarise a day or a week. Past answers are kept in a history list.
+- **Trade page:** an AI review panel reviews the trade against its playbook rules, its notes and similar trades. It suggests up to three tags, and a tag is added only when you click.
+- **Every figure comes from the analytics service.** Claude reads your data only through eight read-only, per-user tools (`app/modules/ai/tools.py`), which wrap the same analytics, report, trade and journal code the dashboard uses. Each tool result is an evidence item (E1, E2 and so on), and the answer cites them. Click a citation to see the tool, the filters, the sample size and the exact data.
+- **Evidence check** (`app/modules/ai/grounding.py`): every number in an answer must match a tool result at the precision shown. Anything else gets one repair round. If it still doesn't match, the answer is marked "Unverified figures", with the figures listed.
+- **Bounded and safe:**
+  - At most 6 tool rounds, 16 tool calls and 250,000 tokens per answer, and 30 requests per user per hour.
+  - No tool can write or place orders.
+  - Notes reach the model only as `untrusted_text` data.
+  - Refusals use server-side fallbacks.
+- **Stored with evidence:** answers and their evidence are stored in `ai_reviews` and `ai_evidence` (migration 0005), are included in the data export, and can be deleted.
+- **Off without a key:** the coach is off until `EL_ANTHROPIC_API_KEY` (or `ANTHROPIC_API_KEY` in Compose's `.env`) is set. Usage is billed to that key. Model `claude-opus-5-5`, effort `medium`.
+
+Details are in [docs/ai-coach.md](docs/ai-coach.md).
+
 ## Verification status (2026-10-11)
 
 | Check | How it was run | Result |
 |---|---|---|
-| Backend pytest: 143 tests covering auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE, replay, playbook versions, rule adherence, checklists, annotations, reports, the order simulator's fill rules, and backtest sessions (determinism, re-run verification, ownership and separation from real trades) | Natively, against PostgreSQL 16 and Redis 7 | pass |
+| Backend pytest: 176 tests covering the AI coach (numerical accuracy against the analytics service, evidence coverage, made-up and uncited figures, cross-user tool access, prompt injection through notes, tool and token budgets, refusals, and the real SDK client against a scripted server), plus auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE, replay, playbook versions, rule adherence, checklists, annotations, reports, the order simulator's fill rules, and backtest sessions (determinism, re-run verification, ownership and separation from real trades) | Natively, against PostgreSQL 16 and Redis 7 | pass |
 | Ruff format and lint; `alembic check` | Natively | clean |
-| Frontend vitest (36, including the replay state machine, chart states, the adherence panel, chart notes, rules-form validation, the reports page, the order ticket, backtest stepping and results), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
-| Playwright journeys (5 tests, including forex trade chart, MAE/MFE, a review replay, versioned playbook rules with checklist adherence and reports, and a manual backtest with a bracket order, results and a verified re-run) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
+| Frontend vitest (40, including the coach page and the trade review's tag suggestions, the replay state machine, chart states, the adherence panel, chart notes, rules-form validation, the reports page, the order ticket, backtest stepping and results), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
+| Playwright journeys (6 tests, including the AI coach against the scripted server, forex trade chart, MAE/MFE, a review replay, versioned playbook rules with checklist adherence and reports, and a manual backtest with a bracket order, results and a verified re-run) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |
 | Live Dukascopy check: real EURUSD, USDJPY and GBPUSD days decoded, ask ≥ bid on every minute | Cloud environment with datafeed.dukascopy.com allowed; httpx replaced by a urllib stand-in (no PyPI there) | pass, after the retry changes |
 | Compose stack: all images built; db, redis, migrate, api, worker and web healthy; fixture A imported through nginx on :8080 with dashboard net `260.45`, including a run forced through the Celery worker | Docker. Since 2026-10-11 the stack stores uploads on a shared `storage` volume: MinIO no longer publishes `minio/minio` on Docker Hub, so the image can't be pulled. The 2026-10-11 run also passed the main and playbook browser journeys through :8080 | pass |
 
@@ -246,19 +277,20 @@ The S3 code path (`S3Storage`, enabled with `EL_STORAGE_BACKEND=s3` and the `EL_
 - Each CSV import targets one account. Multi-account broker files must be split first.
 - The UI shows times in the browser's local timezone. Session dates and hour buckets use market time.
 - There are no broker API adapters yet; import is CSV only.
-- Billing, the AI coach and automated backtesting are placeholder modules with no endpoints.
+- Billing and automated backtesting are placeholder modules with no endpoints.
+- The AI coach answers each question on its own (no follow-up memory), doesn't read backtests, and has only been run against a scripted test server here, never against the live Anthropic API, because no key was available. Its evidence check verifies numbers, not reasoning.
 - Backtests simulate on 1-minute candles: orders fill whole (no partial fills or depth), the order of events inside a minute is unknown (handled conservatively and marked ambiguous), and fills come from Dukascopy prices, not a broker's. Balances are in the quote currency, with no conversion to an account currency, no swap or financing, and no margin checks.
 - Email verification and password reset are not implemented, because no mail service is configured.
 - Rule adherence checks what trade data can show. Rules that need chart reading (for example "entered on a break of the range") are covered only by the trader's checklist answers.
 - The trades-per-day rule counts trades of the same playbook in the same account on the same session date.
 
-## Next milestone: Phase 7 (AI coach with evidence-grounded tools)
+## Next milestone: Phase 8 (broker sync, automated backtesting, billing, deployment hardening and monitoring)
 
-Phase numbers follow the project specification. Phases 1 to 6 are done.
+Phase numbers follow the project specification. Phases 1 to 7 are done.
 
-1. A coach that answers questions about the trader's own journal through server-side tools (metrics, reports, adherence, trades, backtests) rather than raw data dumps, so every claim cites the numbers it came from.
-2. Strict per-user scoping of every tool call, no access to other users' data, and no trade execution or financial advice framed as certainty.
-3. Conversation history, with tool calls and their evidence shown alongside each answer.
-4. Tests with recorded tool responses, so the coach's evidence handling is checked without a live model.
+1. Broker API adapters for read-only execution sync, starting with one broker, alongside CSV import.
+2. Automated (rule-based) backtests on the same deterministic simulator.
+3. Billing and plan limits, including AI coach usage.
+4. Production hardening: HTTPS deployment, backups, error monitoring and metrics.
 
-See also [docs/metrics.md](docs/metrics.md) and [docs/security-and-compliance.md](docs/security-and-compliance.md).
+See also [docs/metrics.md](docs/metrics.md), [docs/ai-coach.md](docs/ai-coach.md) and [docs/security-and-compliance.md](docs/security-and-compliance.md).

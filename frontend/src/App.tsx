@@ -6,6 +6,7 @@ import { AccountsPage } from "./pages/Accounts";
 import { LoginPage, RegisterPage } from "./pages/Auth";
 import { BacktestListPage, BacktestPage } from "./pages/Backtest";
 import { CalendarPage } from "./pages/CalendarPage";
+import { CoachPage } from "./pages/Coach";
 import { DashboardPage } from "./pages/Dashboard";
 import { ImportWizard } from "./pages/ImportWizard";
 import { PlaybookPage, PlaybooksPage } from "./pages/Playbooks";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="imports" element={<ImportsPage />} />
         <Route path="replay" element={<ReplayListPage />} />
         <Route path="replay/:id" element={<ReplayPlayerPage />} />
+        <Route path="coach" element={<CoachPage />} />
         <Route path="backtest" element={<BacktestListPage />} />
         <Route path="backtest/:id" element={<BacktestPage />} />
         <Route path="playbooks" element={<PlaybooksPage />} />

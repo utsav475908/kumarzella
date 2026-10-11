@@ -9,6 +9,7 @@ const NAV = [
   { to: "/trades", label: "Journal", keepFilters: true },
   { to: "/calendar", label: "Calendar", keepFilters: true },
   { to: "/reports", label: "Reports", keepFilters: true },
+  { to: "/coach", label: "AI coach" },
   { to: "/replay", label: "Replay" },
   { to: "/backtest", label: "Backtest" },
   { to: "/import", label: "Import" },

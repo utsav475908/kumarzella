@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.core.deps import get_current_user
 from app.modules.accounts.models import Account, CashTransaction
+from app.modules.ai.models import AiEvidence, AiReview
 from app.modules.audit import service as audit
 from app.modules.auth.models import User
 from app.modules.backtesting.models import BacktestFill, BacktestOrder, BacktestSession, BacktestTrade
@@ -55,6 +56,8 @@ def export_me(user: User = Depends(get_current_user), db: Session = Depends(get_
         "backtest_trades": _rows(db, BacktestTrade, BacktestTrade.user_id == user.id),
         "replay_sessions": _rows(db, ReplaySession, ReplaySession.user_id == user.id),
         "replay_annotations": _rows(db, ReplayAnnotation, ReplayAnnotation.user_id == user.id),
+        "ai_reviews": _rows(db, AiReview, AiReview.user_id == user.id),
+        "ai_evidence": _rows(db, AiEvidence, AiEvidence.user_id == user.id),
     }
     audit.record(db, user_id=user.id, action="user.exported", entity_type="user", entity_id=user.id)
     db.commit()

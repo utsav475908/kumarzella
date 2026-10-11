@@ -7,6 +7,7 @@ import { useInvalidateTradeData, usePlaybooks, useTags, useTrade } from "../api/
 import type { TradeDetail as TD } from "../api/schemas";
 import { TradeAdherencePanel } from "../components/Adherence";
 import { TradeChartPanel } from "../components/TradeChartPanel";
+import { TradeCoachPanel } from "./Coach";
 import { Badge, Button, ErrorState, Field, Input, Loading, Panel, Select, errorMessage } from "../components/ui";
 import { fmtDateTime, fmtDuration, fmtMoney, fmtNum, fmtR, pnlClass, trimDecimal } from "../lib/format";
 
@@ -91,7 +92,7 @@ export function TradeDetailPage() {
         </Panel>
       </div>
       <Panel title="AI review">
-        <p className="text-sm text-muted">The AI coach arrives in Phase 7. It will only cite figures retrieved from the analytics service.</p>
+        <TradeCoachPanel d={d} />
       </Panel>
       <Panel title="Audit history">
         {d.audit.length === 0 ? <p className="text-sm text-muted">No changes recorded.</p> : (

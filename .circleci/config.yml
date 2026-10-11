@@ -118,6 +118,9 @@ jobs:
       # Pin IPv4 end to end so Vite, its /api proxy and Playwright all reach the same sockets.
       VITE_API_PROXY: http://127.0.0.1:8000
       E2E_BASE_URL: http://127.0.0.1:5173
+      # The AI coach journey runs the real SDK path against a scripted local stand-in (tests/fake_claude.py); no key.
+      EL_ANTHROPIC_API_KEY: sk-test-fake
+      EL_ANTHROPIC_BASE_URL: http://127.0.0.1:8765
     steps:
       - checkout
       - python-deps
@@ -133,6 +136,11 @@ jobs:
           command: |
             alembic upgrade head
             python -m tests.make_mirror /tmp/el-mirror
+      - run:
+          name: Scripted Claude stand-in on :8765
+          working_directory: backend
+          background: true
+          command: python -m tests.fake_claude --port 8765
       - run:
           name: API on :8000
           working_directory: backend
