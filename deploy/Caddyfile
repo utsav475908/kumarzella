@@ -1,0 +1,6 @@
+# HTTPS in front of the web container. Caddy gets and renews the certificate for EL_DOMAIN automatically,
+# once the domain's DNS A record points at this server.
+{$EL_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:80
+}

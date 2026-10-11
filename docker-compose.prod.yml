@@ -1,0 +1,59 @@
+# Production overrides for a single server (e.g. a DigitalOcean Droplet). Used together with docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-build
+#
+# Images come from the registry CircleCI publishes to instead of being built on the server, and Caddy terminates
+# HTTPS (certificates from Let's Encrypt) in front of the web container. Values come from a .env file next to this
+# one; see deploy/env.example and docs/deploy-digitalocean.md.
+
+x-prod-api-env: &prod-api-env
+  EL_ENVIRONMENT: production
+  EL_COOKIE_SECURE: "true"
+  EL_SECRET_KEY: ${EL_SECRET_KEY:?set EL_SECRET_KEY in .env}
+  EL_DATABASE_URL: postgresql+psycopg://edgeledger:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/edgeledger
+  EL_CORS_ORIGINS: '["https://${EL_DOMAIN:?set EL_DOMAIN in .env}"]'
+
+services:
+  db:
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+  redis:
+    restart: unless-stopped
+
+  migrate:
+    image: ${IMAGE_REPO:?set IMAGE_REPO in .env}/edgeledger-api:${IMAGE_TAG:-latest}
+    environment: *prod-api-env
+
+  api:
+    image: ${IMAGE_REPO}/edgeledger-api:${IMAGE_TAG:-latest}
+    environment: *prod-api-env
+    restart: unless-stopped
+
+  worker:
+    image: ${IMAGE_REPO}/edgeledger-api:${IMAGE_TAG:-latest}
+    environment: *prod-api-env
+    restart: unless-stopped
+
+  web:
+    image: ${IMAGE_REPO}/edgeledger-web:${IMAGE_TAG:-latest}
+    ports: !reset []
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      EL_DOMAIN: ${EL_DOMAIN}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
