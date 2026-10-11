@@ -32,6 +32,7 @@ cat > .env <<'ENV'
 EL_DOMAIN=app.yourdomain.com
 EL_SECRET_KEY=<output of: openssl rand -hex 32>
 POSTGRES_PASSWORD=<output of: openssl rand -hex 24>
+ANTHROPIC_API_KEY=<your sk-ant-... key, or leave empty to keep the AI coach off>
 IMAGE_REPO=ghcr.io/utsav475908
 IMAGE_TAG=latest
 ENV
