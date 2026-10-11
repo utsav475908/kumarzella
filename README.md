@@ -107,6 +107,12 @@ cd backend && python -m tests.make_mirror /tmp/el-mirror
 EL_DUKASCOPY_BASE_URL=file:///tmp/el-mirror EL_DATABASE_URL=postgresql+psycopg://tj:tj@localhost:5432/tradejournal_e2e uvicorn app.main:app --port 8000 &
 ```
 
+### Continuous integration (CircleCI)
+
+`.circleci/config.yml` runs on every pushed commit, on every branch: backend lint, migrations and pytest against real Postgres and Redis; frontend lint, type check, vitest and build; the Playwright journeys; and a Docker job that builds the images, boots the Compose stack and smoke-tests it through nginx. On `main` the Docker job also pushes `edgeledger-api` and `edgeledger-web` to `ghcr.io/<GHCR_USER>/` tagged with the commit SHA and `latest`, once `GHCR_USER` and `GHCR_TOKEN` (a GitHub token with `write:packages`) are set in the CircleCI project's environment variables; until then that step is skipped. There is no deploy step yet because no hosting target has been chosen. The GitHub Actions workflow in `.github/workflows/ci.yml` still runs too.
+
+To turn it on: sign in to circleci.com with GitHub, open Projects, and click Set Up Project next to `kumarzella`, choosing the existing `.circleci/config.yml` on `main`.
+
 ### Live Dukascopy check
 
 `python -m scripts.check_dukascopy` (in `backend/`) downloads one real day of EURUSD and USDJPY candles and checks the price scale, field order and bid/ask sides. It needs outbound access to `datafeed.dukascopy.com` and no database.
