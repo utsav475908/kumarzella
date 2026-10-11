@@ -50,6 +50,8 @@ class TradeRow:
     playbook_name: str | None = None
     followed_plan: bool | None = None
     mistake_tags: tuple[str, ...] = field(default_factory=tuple)
+    mae: Decimal | None = None
+    mfe: Decimal | None = None
 
 
 def m(v: Decimal | None) -> Decimal | None:
@@ -332,3 +334,28 @@ def risk_adherence(trades: list[TradeRow], max_risk: dict[UUID, Decimal | None],
         ),
         "note": "Plan adherence is self-reported per trade; it is not inferred from profitability.",
     }
+
+
+def excursion_summary(trades: list[TradeRow]) -> dict:
+    """Averages over closed trades that have MAE/MFE (computed from market data); see analytics/excursions.py."""
+    have = [t for t in trades if t.mae is not None and t.mfe is not None]
+    n = len(have)
+    with_r = [t for t in have if t.initial_risk and t.initial_risk > 0]
+    out = {
+        "available": n > 0,
+        "trades_with_data": n,
+        "closed_trades": len(trades),
+        "avg_mae": m(sum((t.mae for t in have), ZERO) / n) if n else None,  # type: ignore[misc]
+        "avg_mfe": m(sum((t.mfe for t in have), ZERO) / n) if n else None,  # type: ignore[misc]
+        "avg_mae_r": ratio(sum((t.mae / t.initial_risk for t in with_r), ZERO), Decimal(len(with_r)))  # type: ignore[operator]
+        if with_r
+        else None,
+        "avg_mfe_r": ratio(sum((t.mfe / t.initial_risk for t in with_r), ZERO), Decimal(len(with_r)))  # type: ignore[operator]
+        if with_r
+        else None,
+        # Share of the best open profit that was kept: sum(net) / sum(MFE), winners and losers together.
+        "mfe_capture": ratio(sum((t.net_pnl for t in have), ZERO), sum((t.mfe for t in have), ZERO))  # type: ignore[misc]
+        if n
+        else None,
+    }
+    return out

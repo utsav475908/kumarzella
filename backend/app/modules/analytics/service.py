@@ -17,9 +17,9 @@ from app.modules.journal.models import Tag, TradeTag
 from app.modules.playbooks.models import Playbook
 from app.modules.trades.filters import TradeFilters, apply_filters, base_query
 
-MAE_MFE_NOTE = (
-    "MAE/MFE need intraday market data for each trade's holding period. Historical market data is not configured "
-    "yet (Phase 5), so these metrics are not computed."
+EXCURSION_NOTE = (
+    "MAE/MFE come from historical 1-minute bid/ask candles (forex via Dukascopy). They are computed when a trade's "
+    "chart is opened or when excursions are refreshed; trades without market data are left out of the averages."
 )
 
 
@@ -63,6 +63,8 @@ def load(db: Session, user_id: UUID, f: TradeFilters, currency: str | None) -> t
             holding_seconds=t.holding_seconds or 0,
             initial_risk=t.initial_risk,
             r_multiple=t.r_multiple,
+            mae=t.mae,
+            mfe=t.mfe,
             playbook_id=t.playbook_id,
             playbook_name=pbs.get(t.playbook_id),
             followed_plan=t.followed_plan,
@@ -134,7 +136,7 @@ def dashboard(db: Session, user_id: UUID, f: TradeFilters, currency: str | None)
             {a.id: a.max_risk_per_trade for a in accounts},
             {a.id: a.daily_loss_limit for a in accounts},
         ),
-        "mae_mfe": {"available": False, "reason": MAE_MFE_NOTE},
+        "excursions": {**mx.excursion_summary(trades), "note": EXCURSION_NOTE},
     }
 
 

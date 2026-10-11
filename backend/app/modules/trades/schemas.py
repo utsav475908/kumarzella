@@ -47,6 +47,8 @@ class TradeOut(ApiModel):
     planned_risk_amount: Decimal | None
     initial_risk: Decimal | None
     r_multiple: Decimal | None
+    mae: Decimal | None = None
+    mfe: Decimal | None = None
     playbook_id: UUID | None
     playbook_name: str | None = None
     followed_plan: bool | None

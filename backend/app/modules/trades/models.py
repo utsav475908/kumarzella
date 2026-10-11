@@ -76,6 +76,12 @@ class Trade(IdMixin, TimestampMixin, Base):
     initial_risk: Mapped[Decimal | None] = mapped_column(Money)
     r_multiple: Mapped[Decimal | None] = mapped_column(Money)
 
+    # Excursions from historical market data (app.modules.analytics.excursions). Cleared when fills change.
+    mae: Mapped[Decimal | None] = mapped_column(Money)
+    mfe: Mapped[Decimal | None] = mapped_column(Money)
+    excursion_source: Mapped[str | None] = mapped_column(String(64))
+    excursion_computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     playbook_id: Mapped[UUID | None] = mapped_column(ForeignKey("playbooks.id", ondelete="SET NULL"), index=True)
     followed_plan: Mapped[bool | None] = mapped_column(Boolean)
     rating: Mapped[int | None] = mapped_column(Integer)

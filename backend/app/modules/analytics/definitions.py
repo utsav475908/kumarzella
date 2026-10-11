@@ -23,5 +23,10 @@ DEFINITIONS = {
     "losses_beyond_planned_risk": "Closed trades with R < -1 (lost more than planned).",
     "daily_loss_limit_breaches": "Account session dates whose net P&L was below minus the account's daily loss limit.",
     "fees_pct_of_gross_profit": "Total fees / sum of positive gross P&L.",
-    "mae_mfe": "Requires market data; not available until historical data is configured.",
+    "mae": "Maximum adverse excursion: lowest open P&L (realized so far + position marked to market) while the trade "
+    "was open, capped at 0, gross of fees. Longs are marked at the bid, shorts at the ask, from 1-minute candles; "
+    "minutes that contain a fill are evaluated at fill prices only.",
+    "mfe": "Maximum favourable excursion: highest open P&L while the trade was open, floored at 0, same rules as MAE.",
+    "mfe_capture": "sum of net P&L / sum of MFE over trades with excursion data: how much of the best open profit "
+    "was kept.",
 }

@@ -42,7 +42,7 @@ def test_dashboard_matches_hand_computed_fixture(auth_client):
     }
     assert {x["label"]: D(x["net_pnl"]) for x in d["by_weekday"]} == {k: D(v) for k, v in EXP["weekday"].items()}
     assert D(d["equity_curve"][-1]["cumulative"]) == D(EXP["net_pnl"])
-    assert d["mae_mfe"]["available"] is False
+    assert d["excursions"]["available"] is False and d["excursions"]["trades_with_data"] == 0
     assert any("Small sample" in w for w in d["warnings"])
 
 

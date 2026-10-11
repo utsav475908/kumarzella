@@ -46,7 +46,11 @@ def recompute_risk(trade: Trade, instrument: Instrument) -> None:
     trade.r_multiple = formulas.r_multiple(trade.net_pnl, trade.initial_risk, trade.status)
 
 
+EXCURSION_INPUTS = ("opened_at", "closed_at", "entry_qty", "exit_qty", "entry_avg_price", "exit_avg_price", "direction")
+
+
 def _apply(trade: Trade, rt: ReconstructedTrade, inst: Instrument) -> None:
+    before = tuple(getattr(trade, f, None) for f in EXCURSION_INPUTS)
     trade.direction = rt.direction
     trade.status = rt.status
     trade.origin = rt.origin
@@ -67,6 +71,8 @@ def _apply(trade: Trade, rt: ReconstructedTrade, inst: Instrument) -> None:
     trade.holding_seconds = rt.holding_seconds
     trade.execution_count = len({a.execution_id for a in rt.allocations})
     recompute_risk(trade, inst)
+    if tuple(getattr(trade, f) for f in EXCURSION_INPUTS) != before:
+        trade.mae = trade.mfe = trade.excursion_source = trade.excursion_computed_at = None
 
 
 def rebuild_instrument(db: Session, account: Account, instrument_id: UUID) -> RebuildStats:

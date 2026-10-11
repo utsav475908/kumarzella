@@ -50,6 +50,18 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # Historical market data. "dukascopy" fetches forex 1-minute bid/ask candles from Dukascopy's public datafeed;
+    # "none" disables fetching (charts fall back to plotting fills only). dukascopy_base_url may point at an
+    # HTTP mirror or a file:// directory laid out like the datafeed (used by tests and offline development).
+    marketdata_provider: Literal["dukascopy", "none"] = "dukascopy"
+    dukascopy_base_url: str = "https://datafeed.dukascopy.com/datafeed"
+    marketdata_timeout_seconds: float = 15.0
+    marketdata_retries: int = 2
+    # Requests that need more uncached days than this are queued to the worker instead of fetched inline.
+    marketdata_inline_max_days: int = 3
+    # A day that failed to download is retried after this many minutes.
+    marketdata_error_retry_minutes: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:
