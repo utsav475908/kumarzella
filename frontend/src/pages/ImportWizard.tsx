@@ -124,10 +124,24 @@ export function ImportWizard() {
                 {accounts.data.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </Select>
             </Field>
-            <Field label="CSV file" hint="One row per fill (execution). Partial fills, scale-ins and reversals are reconstructed into trades.">
-              <input aria-label="CSV file" type="file" accept=".csv,.tsv,.txt,text/csv" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
-            </Field>
-            <div><Button onClick={() => upload.mutate()} disabled={!file || !accountId || upload.isPending}>{upload.isPending ? "Uploading…" : "Upload"}</Button></div>
+            <div>
+              <span className="mb-1 block text-xs text-muted">CSV file</span>
+              <label
+                className={`flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed px-4 py-6 text-center text-sm transition hover:border-accent ${file ? "border-accent/60 bg-accent/5" : "border-line bg-panel-2"}`}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setFile(f); }}
+              >
+                <input aria-label="CSV file" type="file" accept=".csv,.tsv,.txt,text/csv" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                {file
+                  ? <><span className="font-medium" data-testid="chosen-file">{file.name}</span><span className="text-xs text-muted">{(file.size / 1024).toFixed(1)} KB · click to choose a different file</span></>
+                  : <><span className="font-medium text-accent">Choose a CSV file</span><span className="text-xs text-muted">or drag it here</span></>}
+              </label>
+              <p className="mt-1 text-xs text-muted">One row per fill (execution). Partial fills, scale-ins and reversals are reconstructed into trades.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button onClick={() => upload.mutate()} disabled={!file || !accountId || upload.isPending}>{upload.isPending ? "Uploading…" : "Upload"}</Button>
+              {!file && <span className="text-xs text-muted">Choose a file first</span>}
+            </div>
             {upload.isError && <p role="alert" className="text-sm text-loss">{errorMessage(upload.error)}</p>}
           </div>
         </Panel>
