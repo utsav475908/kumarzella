@@ -49,6 +49,15 @@ cat ~/circleci_deploy.pub >> ~/.ssh/authorized_keys
 cat ~/circleci_deploy        # paste this private key into CircleCI (next step), then delete both files
 ```
 
+Get the Droplet's host key so CircleCI can verify it is talking to your server. On your Mac:
+
+```bash
+ssh-keyscan -t ed25519 <droplet-ip>
+```
+
+Check the fingerprint matches what the Droplet itself reports (`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on
+the server, or the DigitalOcean console), then keep the `ssh-keyscan` output line for the next step.
+
 ### 4. Configure CircleCI
 
 In the kumarzella project on circleci.com, Project Settings:
@@ -57,7 +66,10 @@ In the kumarzella project on circleci.com, Project Settings:
 - **Environment Variables**:
   - `GHCR_USER` = `utsav475908`
   - `GHCR_TOKEN` = a GitHub personal access token (classic) with `write:packages` and `read:packages`
+  - `GHCR_PULL_TOKEN` = a second token with only `read:packages` (recommended): the Droplet uses this one to pull,
+    so it never sees a token that can publish. The login is not kept on the server after each deploy.
   - `DEPLOY_HOST` = the Droplet IP
+  - `DEPLOY_KNOWN_HOSTS` = the `ssh-keyscan` line from step 3
   - `DEPLOY_USER` = `root` (optional; root is the default)
 
 The next push to `main` (or Rerun workflow from the CircleCI UI) deploys. The app is then at `https://<EL_DOMAIN>`.
@@ -73,6 +85,10 @@ The next push to `main` (or Rerun workflow from the CircleCI UI) deploys. The ap
   `docker compose ... exec -T db pg_dump -U edgeledger edgeledger | gzip > backup.sql.gz` on a schedule.
 
 ## Notes
+
+- Security: anyone who can push to `main` or re-run jobs in the CircleCI project can deploy, and a job re-run with SSH
+  could read the deploy key. That is fine while you are the only member. If you add collaborators, move the deploy
+  variables and key into a CircleCI context restricted to yourself, and use a non-root deploy user on the Droplet.
 
 - Migrations run on every deploy (the `migrate` service) before the API starts.
 - Uploads are stored in the `edgeledger_storage` volume on the Droplet.

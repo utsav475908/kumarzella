@@ -5,6 +5,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 compose=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
 
+# Registry login goes to a throwaway Docker config, so no token is left on the server after the deploy.
+DOCKER_CONFIG=$(mktemp -d)
+export DOCKER_CONFIG
+trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+
 token=""
 [ -t 0 ] || token=$(cat)
 if [ -n "${GHCR_USER:-}" ] && [ -n "$token" ]; then
