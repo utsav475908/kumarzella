@@ -32,7 +32,8 @@ cat > .env <<'ENV'
 EL_DOMAIN=app.yourdomain.com
 EL_SECRET_KEY=<output of: openssl rand -hex 32>
 POSTGRES_PASSWORD=<output of: openssl rand -hex 24>
-OPENAI_API_KEY=<your sk-... key, or leave empty to keep the AI coach off>
+DEEPSEEK_API_KEY=<your DeepSeek sk-... key, or leave empty to keep the AI coach off>
+AI_PROVIDER=deepseek
 IMAGE_REPO=ghcr.io/utsav475908
 IMAGE_TAG=latest
 ENV
@@ -40,8 +41,8 @@ chmod 600 .env
 ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw --force enable
 ```
 
-The AI coach uses OpenAI (`gpt-5.5`, or set `OPENAI_MODEL`). `ANTHROPIC_API_KEY` also works; if both keys are set, add
-`AI_PROVIDER=openai` to keep using OpenAI. See docs/ai-coach.md.
+The AI coach uses DeepSeek (`deepseek-chat`, or set `DEEPSEEK_MODEL`). `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` also
+work; set `AI_PROVIDER` to the one you want. See docs/ai-coach.md.
 
 Keep `POSTGRES_PASSWORD` unchanged after the first start: Postgres keeps the password the database was created with.
 
