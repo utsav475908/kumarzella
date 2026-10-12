@@ -66,9 +66,14 @@ class Settings(BaseSettings):
     marketdata_error_retry_minutes: int = 30
 
     # AI coach. Uses the operator's own key for Anthropic (Claude) or OpenAI; without one the coach is switched off and
-    # nothing is sent anywhere. "auto" uses Anthropic when its key is set, otherwise OpenAI. ANTHROPIC_API_KEY and
+    # nothing is sent anywhere. "auto" uses the first key set, in the order Anthropic, OpenAI, DeepSeek. ANTHROPIC_API_KEY and
     # OPENAI_API_KEY are accepted too, for native development.
-    ai_provider: Literal["auto", "anthropic", "openai"] = "auto"
+    ai_provider: Literal["auto", "anthropic", "openai", "deepseek"] = "auto"
+    deepseek_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("EL_DEEPSEEK_API_KEY", "DEEPSEEK_API_KEY")
+    )
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-chat"
     openai_api_key: SecretStr | None = Field(
         default=None, validation_alias=AliasChoices("EL_OPENAI_API_KEY", "OPENAI_API_KEY")
     )

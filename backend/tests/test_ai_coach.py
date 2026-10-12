@@ -431,6 +431,19 @@ def test_provider_follows_the_keys(monkeypatch):
         monkeypatch.setattr(s, "openai_api_key", SecretStr("  "))
         ai_client.set_client_for_tests(None)
         assert not ai_client.configured()  # chosen provider has no key
+        monkeypatch.setattr(s, "ai_provider", "auto")
+        monkeypatch.setattr(s, "anthropic_api_key", None)
+        monkeypatch.setattr(s, "openai_api_key", None)
+        monkeypatch.setattr(s, "deepseek_api_key", SecretStr("sk-deepseek-test"))
+        ai_client.set_client_for_tests(None)
+        c = ai_client.get_client()
+        assert c.provider == "deepseek" and c.model == s.deepseek_model
+        monkeypatch.setattr(s, "openai_api_key", SecretStr("sk-openai-test"))
+        ai_client.set_client_for_tests(None)
+        assert ai_client.get_client().provider == "openai"  # auto: Anthropic, then OpenAI, then DeepSeek
+        monkeypatch.setattr(s, "ai_provider", "deepseek")
+        ai_client.set_client_for_tests(None)
+        assert ai_client.get_client().provider == "deepseek"
     finally:
         ai_client.set_client_for_tests(None)
 
@@ -463,3 +476,31 @@ def test_the_openai_client_end_to_end_against_a_scripted_server(journal):
     assert [m["role"] for m in req["messages"]] == ["developer", "user", "assistant", "tool"]
     assert req["messages"][2]["tool_calls"][0]["function"]["name"] == "performance_summary"
     assert req["messages"][3]["tool_call_id"] == req["messages"][2]["tool_calls"][0]["id"]
+
+
+def test_the_deepseek_client_end_to_end_against_a_scripted_server(journal):
+    """DeepSeek takes the OpenAI-compatible path with plain JSON mode and no strict tools or reasoning effort."""
+    import threading
+
+    from tests.fake_claude import LAST, serve
+
+    srv = serve(0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        url = f"http://127.0.0.1:{srv.server_address[1]}"
+        ai_client.set_client_for_tests(ai_client.DeepSeekClient("sk-deepseek-test", url, 10, "deepseek-chat"))
+        body = journal.post("/api/v1/ai/ask", json={"question": "How am I doing?"}).json()
+        status = journal.get("/api/v1/ai/status").json()
+    finally:
+        srv.shutdown()
+        ai_client.set_client_for_tests(None)
+    assert body["status"] == "ok", body
+    assert "Net P&L is $260.45 over 5 closed trades [E1]" in body["answer"]
+    assert status["provider"] == "deepseek" and status["model"] == "deepseek-chat"
+    req = LAST["body"]
+    assert LAST["path"] == "/chat/completions" and LAST["headers"]["authorization"] == "Bearer sk-deepseek-test"
+    assert req["response_format"] == {"type": "json_object"}
+    assert "reasoning_effort" not in req and "max_completion_tokens" not in req and req["max_tokens"] > 0
+    assert all("strict" not in t["function"] for t in req["tools"])
+    assert [m["role"] for m in req["messages"]] == ["system", "user", "assistant", "tool"]
+    assert "matches this JSON schema" in req["messages"][0]["content"]

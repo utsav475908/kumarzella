@@ -152,7 +152,8 @@ export function CoachSetup({ reason }: { reason: string | null }) {
       <p className="text-muted">{reason ?? "No Anthropic API key is configured."}</p>
       <p className="text-muted">
         To turn it on, put your own API key in a file called <code>.env</code> next to <code>docker-compose.yml</code>:{" "}
-        <code>OPENAI_API_KEY=sk-…</code> for OpenAI or <code>ANTHROPIC_API_KEY=sk-ant-…</code> for Claude. Then run{" "}
+        <code>OPENAI_API_KEY=sk-…</code> for OpenAI, <code>DEEPSEEK_API_KEY=sk-…</code> for DeepSeek or{" "}
+        <code>ANTHROPIC_API_KEY=sk-ant-…</code> for Claude. Then run{" "}
         <code>docker compose up -d</code>. Git ignores that file, and usage is billed to your key.
       </p>
     </div>

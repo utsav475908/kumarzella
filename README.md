@@ -50,7 +50,7 @@ docker compose exec api python -m scripts.seed_demo     # optional synthetic dem
 
 Demo login: `demo@example.com` / `demo-password-1`.
 
-To switch on the AI coach, put your own API key in a file named `.env` next to `docker-compose.yml` (git ignores it): `OPENAI_API_KEY=sk-...` for OpenAI or `ANTHROPIC_API_KEY=sk-ant-...` for Claude. Then run `docker compose up -d` again. Without a key the coach page explains how to turn it on, and nothing is sent anywhere. See [docs/ai-coach.md](docs/ai-coach.md). If your network uses a TLS-intercepting proxy, pass its CA to the image builds as a BuildKit secret:
+To switch on the AI coach, put your own API key in a file named `.env` next to `docker-compose.yml` (git ignores it): `OPENAI_API_KEY=sk-...` for OpenAI, `DEEPSEEK_API_KEY=sk-...` for DeepSeek (add `AI_PROVIDER=deepseek` if another key is also set) or `ANTHROPIC_API_KEY=sk-ant-...` for Claude. Then run `docker compose up -d` again. Without a key the coach page explains how to turn it on, and nothing is sent anywhere. See [docs/ai-coach.md](docs/ai-coach.md). If your network uses a TLS-intercepting proxy, pass its CA to the image builds as a BuildKit secret:
 
 ```bash
 docker buildx build --load --secret id=extra_ca,src=/path/to/ca.crt -t edgeledger-api backend
@@ -249,7 +249,7 @@ Built before Phase 4, at the project owner's request, with one provider and one 
   - Notes reach the model only as `untrusted_text` data.
   - Refusals use server-side fallbacks.
 - **Stored with evidence:** answers and their evidence are stored in `ai_reviews` and `ai_evidence` (migration 0005), are included in the data export, and can be deleted.
-- **Off without a key:** the coach is off until an OpenAI or Anthropic key is set (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in Compose's `.env`). Usage is billed to that key. Models `gpt-5.5` (OpenAI) or `claude-opus-5-5` (Anthropic), effort `medium`.
+- **Off without a key:** the coach is off until an OpenAI, DeepSeek or Anthropic key is set (`OPENAI_API_KEY`, `DEEPSEEK_API_KEY` or `ANTHROPIC_API_KEY` in Compose's `.env`). Usage is billed to that key. Models `gpt-5.5` (OpenAI), `deepseek-chat` (DeepSeek, untested live) or `claude-opus-5-5` (Anthropic), effort `medium`.
 
 Details are in [docs/ai-coach.md](docs/ai-coach.md).
 
@@ -257,7 +257,7 @@ Details are in [docs/ai-coach.md](docs/ai-coach.md).
 
 | Check | How it was run | Result |
 |---|---|---|
-| Backend pytest: 178 tests covering the AI coach (numerical accuracy against the analytics service, evidence coverage, made-up and uncited figures, cross-user tool access, prompt injection through notes, tool and token budgets, refusals, and the real Anthropic and OpenAI SDK clients against a scripted server), plus auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE, replay, playbook versions, rule adherence, checklists, annotations, reports, the order simulator's fill rules, and backtest sessions (determinism, re-run verification, ownership and separation from real trades) | Natively, against PostgreSQL 16 and Redis 7 | pass |
+| Backend pytest: 179 tests covering the AI coach (numerical accuracy against the analytics service, evidence coverage, made-up and uncited figures, cross-user tool access, prompt injection through notes, tool and token budgets, refusals, and the real Anthropic, OpenAI and DeepSeek SDK clients against a scripted server), plus auth, authorization, imports, the position engine, instrument rules, the journal, metrics regressions, Dukascopy decoding, the candle cache, MAE/MFE, replay, playbook versions, rule adherence, checklists, annotations, reports, the order simulator's fill rules, and backtest sessions (determinism, re-run verification, ownership and separation from real trades) | Natively, against PostgreSQL 16 and Redis 7 | pass |
 | Ruff format and lint; `alembic check` | Natively | clean |
 | Frontend vitest (40, including the coach page and the trade review's tag suggestions, the replay state machine, chart states, the adherence panel, chart notes, rules-form validation, the reports page, the order ticket, backtest stepping and results), `tsc -b`, oxlint, `vite build` | Natively, Node 22 | pass |
 | Playwright journeys (6 tests, including the AI coach against the scripted server, forex trade chart, MAE/MFE, a review replay, versioned playbook rules with checklist adherence and reports, and a manual backtest with a bracket order, results and a verified re-run) | Natively, API and Vite against the `tradejournal_e2e` database and the generated candle mirror, headless Chromium | pass |

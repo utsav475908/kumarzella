@@ -1,13 +1,13 @@
 # AI coach
 
-The coach answers questions about the trader's own journal, reviews single trades, suggests tags and summarises a day or a week. It runs on the operator's own API key, either OpenAI (default model `gpt-5.5`) or Anthropic's Claude (default `claude-opus-5-5`).
+The coach answers questions about the trader's own journal, reviews single trades, suggests tags and summarises a day or a week. It runs on the operator's own API key, OpenAI (default model `gpt-5.5`), DeepSeek (default `deepseek-chat`) or Anthropic's Claude (default `claude-opus-5-5`).
 
 Code:
 
 - `backend/app/modules/ai/tools.py` defines the read-only tools the model can call.
 - `backend/app/modules/ai/coach.py` runs the bounded tool loop and stores the result.
 - `backend/app/modules/ai/grounding.py` is the unsupported-claim check.
-- `backend/app/modules/ai/client.py` holds the Anthropic and OpenAI SDK clients and their error handling. The coach speaks the Anthropic Messages format, and `OpenAIClient` translates each request to OpenAI Chat Completions (tools become strict functions, tool results become `tool` messages, the answer schema becomes a strict `response_format`) and the reply back. The loop, the evidence check and storage are the same for both.
+- `backend/app/modules/ai/client.py` holds the Anthropic, OpenAI and DeepSeek clients and their error handling. The coach speaks the Anthropic Messages format, and `OpenAIClient` translates each request to OpenAI Chat Completions (tools become strict functions, tool results become `tool` messages, the answer schema becomes a strict `response_format`) and the reply back. `DeepSeekClient` reuses that translation with DeepSeek's narrower feature set: the `system` role, plain JSON mode (the answer schema is put in the system prompt), non-strict tools, no `reasoning_effort` and `max_tokens`. DeepSeek therefore doesn't guarantee the answer shape, so the evidence check matters more there. The loop, the evidence check and storage are the same for all three.
 - `backend/app/modules/ai/router.py` exposes the API under `/api/v1/ai`.
 - `frontend/src/pages/Coach.tsx` holds the Coach page and the trade page's AI review panel.
 - `frontend/src/components/CoachAnswer.tsx` renders an answer with its citations and evidence.
@@ -16,15 +16,16 @@ Code:
 
 The coach is off until an API key is configured. When it is off, every coach endpoint returns `503 ai_not_configured` and nothing is sent anywhere.
 
-- **Docker Compose:** create a file named `.env` next to `docker-compose.yml` (git ignores it) containing `OPENAI_API_KEY=sk-...` or `ANTHROPIC_API_KEY=sk-ant-...`. Then run `docker compose up -d`. Optional lines: `AI_PROVIDER=openai` to force OpenAI when both keys are present, and `OPENAI_MODEL=...`.
-- **Native:** set `EL_OPENAI_API_KEY` or `EL_ANTHROPIC_API_KEY`. Plain `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` also work.
-- **Which provider:** `EL_AI_PROVIDER=auto` (the default) uses Anthropic when its key is set, otherwise OpenAI.
+- **Docker Compose:** create a file named `.env` next to `docker-compose.yml` (git ignores it) containing `OPENAI_API_KEY=sk-...`, `DEEPSEEK_API_KEY=sk-...` or `ANTHROPIC_API_KEY=sk-ant-...`. Then run `docker compose up -d`. Optional lines: `AI_PROVIDER=openai` or `AI_PROVIDER=deepseek` to pick one when several keys are present, `OPENAI_MODEL=...` and `DEEPSEEK_MODEL=...`.
+- **Native:** set `EL_OPENAI_API_KEY`, `EL_DEEPSEEK_API_KEY` or `EL_ANTHROPIC_API_KEY`. The plain names also work.
+- **Which provider:** `EL_AI_PROVIDER=auto` (the default) uses Anthropic when its key is set, then OpenAI, then DeepSeek.
 
 Usage is billed to that key. Settings, all `EL_*`:
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `AI_PROVIDER` | `auto` | `auto`, `openai` or `anthropic` |
+| `AI_PROVIDER` | `auto` | `auto`, `openai`, `deepseek` or `anthropic` |
+| `DEEPSEEK_MODEL` | `deepseek-chat` | DeepSeek model |
 | `OPENAI_MODEL` | `gpt-5.5` | OpenAI model |
 | `AI_MODEL` | `claude-opus-5-5` | Anthropic model |
 | `AI_EFFORT` | `medium` | Thinking effort (OpenAI `reasoning_effort`): `low` to `max` |
@@ -35,7 +36,7 @@ Usage is billed to that key. Settings, all `EL_*`:
 | `AI_MAX_TOKENS` | 8,000 | Output tokens per call |
 | `AI_TIMEOUT_SECONDS` | 120 | Per HTTP request (the SDK retries twice) |
 | `AI_RATE_LIMIT` / `AI_RATE_WINDOW_SECONDS` | 30 / 3600 | Coach requests per user per window |
-| `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL` | unset | Alternative API endpoints (tests point them at `tests/fake_claude.py`) |
+| `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, `DEEPSEEK_BASE_URL` | unset | Alternative API endpoints (tests point them at `tests/fake_claude.py`) |
 
 ## API
 
@@ -152,7 +153,7 @@ Nothing else is sent: no email, password, session, API keys or other users' data
   - the 99% is flagged.
 - **Budgets:** a model that never stops calling tools is cut off at the round and tool-call limits. The token budget stops the loop. Coach requests are rate-limited.
 - **Refusal:** a declined request is stored as `declined`.
-- **Real SDK paths:** the actual Anthropic and OpenAI SDK clients run against `tests/fake_claude.py`, a scripted local HTTP server. The Anthropic test checks the beta header, `fallbacks: "default"`, the API key header, the effort setting and the message order. The OpenAI test checks the translated request: `developer`, `user`, `assistant` (with `tool_calls`) and `tool` messages, strict functions, the strict response format and `reasoning_effort`. Provider selection from the keys is tested too.
+- **Real SDK paths:** the actual Anthropic, OpenAI and DeepSeek clients run against `tests/fake_claude.py`, a scripted local HTTP server. The Anthropic test checks the beta header, `fallbacks: "default"`, the API key header, the effort setting and the message order. The OpenAI test checks the translated request: `developer`, `user`, `assistant` (with `tool_calls`) and `tool` messages, strict functions, the strict response format and `reasoning_effort`. The DeepSeek test checks JSON mode, the `system` role and the absence of strict tools and `reasoning_effort`. Provider selection from the keys is tested too.
 
 `frontend/src/pages/coach.test.tsx` covers:
 
@@ -169,4 +170,5 @@ Nothing else is sent: no email, password, session, API keys or other users' data
 - The coach reads the journal, reports and playbooks. It does not read backtest sessions or candles.
 - The evidence check is about numbers. It can't tell whether a sentence's reasoning is sound. Read each answer as a set of candidate patterns to check.
 - Answers take several seconds, because each tool round is another model call. The page shows progress.
-- Live answers depend on the operator's OpenAI or Anthropic account: its rate limits, its model access and its cost.
+- Live answers depend on the operator's OpenAI, DeepSeek or Anthropic account: its rate limits, its model access and its cost.
+- DeepSeek support has only been tested against the scripted server, not a live account. The model name `deepseek-chat` is a default; set `DEEPSEEK_MODEL` if your account uses another.

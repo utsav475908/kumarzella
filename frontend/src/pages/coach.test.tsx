@@ -26,6 +26,7 @@ describe("AI coach page", () => {
     expect(setup).toHaveTextContent("switched off");
     expect(setup).toHaveTextContent("ANTHROPIC_API_KEY=");
     expect(setup).toHaveTextContent("OPENAI_API_KEY=");
+    expect(setup).toHaveTextContent("DEEPSEEK_API_KEY=");
     expect(screen.queryByRole("form", { name: "Ask the coach" })).not.toBeInTheDocument();
   });
 

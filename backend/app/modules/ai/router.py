@@ -115,7 +115,9 @@ def status(user: User = Depends(get_current_user)):
         "provider": getattr(c, "provider", "test") if c else None,
         "model": (getattr(c, "model", None) or s.ai_model) if c else None,
         "fallbacks": s.ai_fallbacks and getattr(c, "provider", None) == "anthropic",
-        "reason": None if c else "No AI key is configured on the server (OPENAI_API_KEY or ANTHROPIC_API_KEY).",
+        "reason": None
+        if c
+        else "No AI key is configured on the server (OPENAI_API_KEY, DEEPSEEK_API_KEY or ANTHROPIC_API_KEY).",
         "limits": {"requests_per_hour": s.ai_rate_limit, "tool_rounds": s.ai_max_tool_rounds},
     }
 

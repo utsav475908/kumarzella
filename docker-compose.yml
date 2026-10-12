@@ -12,10 +12,12 @@ x-api-env: &api-env
   EL_STORAGE_LOCAL_PATH: /app/var/storage
   EL_SECRET_KEY: ${EL_SECRET_KEY:-dev-insecure-change-me}
   EL_CORS_ORIGINS: '["http://localhost:8080","http://localhost:5173"]'
-  # AI coach: put OPENAI_API_KEY=sk-... or ANTHROPIC_API_KEY=sk-ant-... in a .env file next to this one (git ignores
-  # it). With neither, the coach is switched off. Optional: AI_PROVIDER (auto, openai, anthropic), OPENAI_MODEL.
+  # AI coach: put OPENAI_API_KEY, DEEPSEEK_API_KEY or ANTHROPIC_API_KEY in a .env file next to this one (git ignores
+  # it). With neither, the coach is switched off. Optional: AI_PROVIDER (auto, openai, deepseek, anthropic), OPENAI_MODEL, DEEPSEEK_MODEL.
   EL_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   EL_OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  EL_DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+  EL_DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
   EL_AI_PROVIDER: ${AI_PROVIDER:-auto}
   EL_OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.5}
 
